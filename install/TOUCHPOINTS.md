@@ -251,6 +251,26 @@ The rail then needs only the upstream M7 rules (`.dispatch-group`,
 `style.css`, so `client/rewind.css` adds nothing but the rail's own column
 compaction (`#hist-rail .dispatch-card` etc.).
 
+**v0.5.57 — the head's label.** The same shared helper now carries the
+label policy, so this is part of the general layer as well:
+
+```rust
+// ui.rs: the store (localStorage `rushi-project-labels`, a
+// `{ "<working path>": "<label>" }` map — the path is never rewritten)
+pub fn read_project_labels() -> HashMap<String, String>;
+pub fn persist_project_labels(labels: &HashMap<String, String>);
+pub fn group_label(state: AppState, group_key: &str) -> String;   // alias ?? basename
+pub fn set_group_label(state: AppState, group_key: &str, label: &str);
+```
+
+plus two `AppState` fields (`project_labels`, `group_edit`). The head renders
+`<span class="dispatch-group-name" title="<full path>">label</span>` and, on
+hover, a `✎` that swaps the label for an `<input>` (Enter/blur commit, Escape
+cancel, empty = basename, `.custom` drops M7's uppercase). Its four CSS rules
+(`.dispatch-group-name`, `.custom`, `.dispatch-group-edit`, `.dispatch-group-input`)
+are restated in `client/rewind-additive.css`, so the drop-in stays complete —
+upstream they live next to the M7 `.dispatch-group-*` rules.
+
 ---
 
 ## 4. Stylesheet
@@ -280,7 +300,7 @@ identically (see the file header).
 cargo build -p rushi-web                     # server binary (new route)
 cd web-leptos && trunk build                 # WASM bundle
 cargo test -p rushi-web                      # 42 passed (12 rewind projection)
-python3 e2e/rewind_probe.py 8491             # 88 checks, PASS
+python3 e2e/rewind_probe.py 8491             # 107 checks, PASS
 python3 e2e/layout_probe.py  <port>          # shell regression (scrollbar rules)
 ```
 

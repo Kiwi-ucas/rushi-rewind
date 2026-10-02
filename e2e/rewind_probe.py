@@ -216,9 +216,17 @@ TREE = """(function(){
     // v0.5.56: the rail IS the M7 dispatch view — one .dispatch-group per
     // working path, .dispatch-card per session, each with its ▶/■ loop toggle.
     groups: [...document.querySelectorAll('#hist-rail .dispatch-group')].map(g=>({
-      label: (((g.querySelector('.dispatch-group-head')||{}).childNodes||[])[0]||{}).textContent||'',
+      // v0.5.57: the visible label is `.dispatch-group-name` (basename or the
+      // user's alias) and its `title` is the FULL working path.
+      label: (((g.querySelector('.dispatch-group-name')||{}).textContent||'').trim()
+              || ((g.querySelector('.dispatch-group-input')||{}).value||'')),
+      labelShown: (((g.querySelector('.dispatch-group-name')||{}).innerText||'').trim()),
       count: Number(((g.querySelector('.dispatch-group-count')||{}).innerText||'0')),
       title: (g.querySelector('.dispatch-group-head')||{}).title||'',
+      nameTitle: (g.querySelector('.dispatch-group-name')||{}).title||'',
+      pencil: !!g.querySelector('.dispatch-group-edit'),
+      input: !!g.querySelector('.dispatch-group-input'),
+      inputVal: (g.querySelector('.dispatch-group-input')||{}).value||'',
       cards: [...g.querySelectorAll('.dispatch-card')].map(c=>nm(c)),
       tog: [...g.querySelectorAll('.dispatch-card .qa')].map(b=>
         ({txt:b.innerText.trim(), cls:b.className, title:b.title}))})),
@@ -476,9 +484,10 @@ def main():
         res.check("R1: the group head labels the path and counts its cards",
                   all(g["count"] == len(g["cards"]) == 1 for g in t["groups"]),
                   str([(g["label"], g["count"], g["cards"]) for g in t["groups"]]))
-        res.check("R1: the head's title is the full working path",
-                  gl["alpha-project"]["title"] == PROJ_A and gl["beta-project"]["title"] == PROJ_B,
-                  str({k: v["title"] for k, v in gl.items()}))
+        res.check("R1: the basename's tooltip is the full working path",
+                  gl["alpha-project"]["nameTitle"] == PROJ_A
+                  and gl["beta-project"]["nameTitle"] == PROJ_B,
+                  str({k: v["nameTitle"] for k, v in gl.items()}))
         res.check("R1: the cards land in their own project's group",
                   gl["alpha-project"]["cards"] == [SESSION]
                   and gl["beta-project"]["cards"] == [SESSION2]
@@ -494,6 +503,113 @@ def main():
         res.check("R2: every rail card has a loop toggle (▶ start while idle)",
                   len(t["cards"]) == 3 and all(cd["go"] and not cd["stop"] for cd in t["cards"]),
                   str(t["cards"]))
+        # ── L1/L2 (v0.5.57): the group label — tooltip + display-only rename ──
+        res.check("L1: every head's label carries the full path as its tooltip",
+                  all(g["nameTitle"] == g["title"] if g["title"] else g["nameTitle"]
+                      for g in t["groups"])
+                  and gl["(no project)"]["nameTitle"] == "(no project)",
+                  str([(g["label"], g["nameTitle"]) for g in t["groups"]]))
+        res.check("L1: the M7 uppercase style is kept for a path's basename",
+                  all(g["labelShown"] == g["label"].upper()
+                      for g in t["groups"] if g["label"] != "(no project)"),
+                  str([(g["label"], g["labelShown"]) for g in t["groups"]]))
+        res.check("L2: every head offers the rename pencil",
+                  all(g["pencil"] and not g["input"] for g in t["groups"]),
+                  str([(g["label"], g["pencil"], g["input"]) for g in t["groups"]]))
+        cwd_before = {x["name"]: x.get("cwd") for x in get_json(port, "/api/sessions")}
+        lines_before = len(log_lines())
+        open_edit = ("(function(){const g=[...document.querySelectorAll('#hist-rail .dispatch-group')]"
+                     ".find(x=>{const n=x.querySelector('.dispatch-group-name');"
+                     f"return n && n.title==='{PROJ_A}';}});"
+                     "if(!g) return 'nf'; const b=g.querySelector('.dispatch-group-edit');"
+                     "if(!b) return 'nobtn'; b.click(); return 'ok';})()")
+        res.check("L2: the pencil opens the editor", c.ev(open_edit) == "ok")
+        time.sleep(0.4)
+        e = json.loads(c.ev(TREE))
+        eg = [g for g in e["groups"] if g["input"]]
+        res.check("L2: the label is swapped for an input, prefilled with the label",
+                  len(eg) == 1 and eg[0]["inputVal"] == "alpha-project",
+                  str([(g["label"], g["input"], g["inputVal"]) for g in e["groups"]]))
+        res.check("L2: the input's placeholder is the real basename",
+                  c.ev("(document.querySelector('#hist-rail .dispatch-group-input')||{}).placeholder")
+                  == "alpha-project")
+        res.check("L2: Escape cancels without touching the label",
+                  c.ev("(function(){const i=document.querySelector('#hist-rail .dispatch-group-input');"
+                       "i.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));"
+                       "return 'ok';})()") == "ok")
+        time.sleep(0.4)
+        el = json.loads(c.ev(TREE))
+        res.check("L2: after Escape the basename is back",
+                  sorted(g["label"] for g in el["groups"])
+                  == ["(no project)", "alpha-project", "beta-project"],
+                  str([g["label"] for g in el["groups"]]))
+        # now rename for real: pencil -> type -> Enter
+        c.ev(open_edit)
+        time.sleep(0.4)
+        res.check("L2: commit with Enter",
+                  c.ev("(function(){const i=document.querySelector('#hist-rail .dispatch-group-input');"
+                       "if(!i) return 'nf'; i.value='core engine';"
+                       "i.dispatchEvent(new Event('input',{bubbles:true}));"
+                       "i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));"
+                       "return 'ok';})()") == "ok")
+        time.sleep(0.5)
+        t2 = json.loads(c.ev(TREE))
+        l2 = {g["label"]: g for g in t2["groups"]}
+        res.check("L2: the head now shows the custom label",
+                  "core engine" in l2 and l2["core engine"]["count"] == 1
+                  and l2["core engine"]["cards"] == [SESSION],
+                  str([(g["label"], g["cards"]) for g in t2["groups"]]))
+        res.check("L2: the custom label is shown as typed (uppercase dropped)",
+                  l2.get("core engine", {}).get("labelShown") == "core engine",
+                  str(l2.get("core engine", {}).get("labelShown")))
+        res.check("L2: the tooltip still shows the REAL working path",
+                  l2.get("core engine", {}).get("nameTitle") == PROJ_A,
+                  str(l2.get("core engine", {}).get("nameTitle")))
+        res.check("L2: the editor closed (back to a label)",
+                  not l2.get("core engine", {}).get("input")
+                  and len([g for g in t2["groups"] if g["input"]]) == 0)
+        res.check("L2: the working path is untouched (server cwd unchanged)",
+                  {x["name"]: x.get("cwd") for x in get_json(port, "/api/sessions")} == cwd_before,
+                  str({x["name"]: x.get("cwd") for x in get_json(port, "/api/sessions")}))
+        res.check("L2: renaming wrote no event and no marker",
+                  len(log_lines()) == lines_before
+                  and not os.path.exists(os.path.join(ROOT, SESSION, "loop.last")),
+                  f"{lines_before} -> {len(log_lines())}")
+        res.check("L2: the alias is persisted (localStorage)",
+                  "core engine" in c.ev("localStorage.getItem('rushi-project-labels') || ''")
+                  and PROJ_A in c.ev("localStorage.getItem('rushi-project-labels') || ''"))
+        # it must survive a reload (the whole point of persisting it)
+        reload_page(c)
+        wait_for(c, "document.querySelectorAll('#hist-rail .dispatch-group').length",
+                 lambda v: isinstance(v, int) and v >= 3)
+        # a fresh page has no active session: re-enter it from the rail, so the
+        # tree the later checks look at is back (the layout itself is persisted)
+        c.ev(click_rail(SESSION))
+        wait_for(c, "document.querySelectorAll('#hist-tree .rw-node').length", lambda v: v == 4)
+        t3 = json.loads(c.ev(TREE))
+        res.check("L2: the alias survives a page reload",
+                  "core engine" in {g["label"] for g in t3["groups"]}
+                  and [g["nameTitle"] for g in t3["groups"] if g["label"] == "core engine"] == [PROJ_A],
+                  str([(g["label"], g["nameTitle"]) for g in t3["groups"]]))
+        # and clearing it (empty value) restores the basename
+        c.ev(open_edit)
+        time.sleep(0.4)
+        c.ev("(function(){const i=document.querySelector('#hist-rail .dispatch-group-input');"
+             "if(!i) return 'nf'; i.value='';"
+             "i.dispatchEvent(new Event('input',{bubbles:true}));"
+             "i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));"
+             "return 'ok';})()")
+        time.sleep(0.5)
+        t4 = json.loads(c.ev(TREE))
+        res.check("L2: clearing the label restores the basename",
+                  sorted(g["label"] for g in t4["groups"])
+                  == ["(no project)", "alpha-project", "beta-project"]
+                  and [g["nameTitle"] for g in t4["groups"] if g["label"] == "alpha-project"]
+                  == [PROJ_A],
+                  str([(g["label"], g["nameTitle"]) for g in t4["groups"]]))
+        res.check("L2: the cleared alias is dropped from localStorage",
+                  "core engine" not in c.ev("localStorage.getItem('rushi-project-labels') || ''"))
+
         res.check("R2: the toggle is the dispatch 'start' button",
                   all(tg["txt"] == "\u25B6 start" and "qa-go" in tg["cls"]
                       and tg["title"] == "start / stop this session's loop"

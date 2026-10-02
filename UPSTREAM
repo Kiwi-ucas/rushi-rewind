@@ -1,7 +1,7 @@
 # The rushi-webui revision these mirrors were taken from.
 # Written by scripts/sync-from-webui.sh — do not edit.
 repo     = /Users/kiwi/Desktop/deepseek_harness/rushi/rushi-webui
-rev      = fc2bb2314950bf9359c08353a237d78ab76c1318
-subject  = v0.5.56b: the History rail = the dispatch view's session cards
+rev      = ecaad725fde6890c74cbb62e1def7032605482ff
+subject  = v0.5.57: group labels — full-path tooltip + a display-only rename
 worktree = clean
-synced   = 2026-10-02T03:37:53Z
+synced   = 2026-10-02T14:22:39Z

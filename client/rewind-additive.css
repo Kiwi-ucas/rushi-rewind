@@ -31,3 +31,19 @@
 #hist-tree::-webkit-scrollbar-button, #hist-rail::-webkit-scrollbar-button, .rewind-list::-webkit-scrollbar-button { display: none; width: 0; height: 0; background: transparent; border: none; }
 #hist-tree::-webkit-scrollbar-track, #hist-rail::-webkit-scrollbar-track, .rewind-list::-webkit-scrollbar-track { background: var(--scroll-track); box-shadow: var(--scroll-groove); }
 #hist-tree::-webkit-scrollbar-thumb, #hist-rail::-webkit-scrollbar-thumb, .rewind-list::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border: 2px solid transparent; background-clip: padding-box; border-radius: 999px; margin: 2px 0; box-shadow: var(--scroll-relief); }
+
+/* ── the group head's label / rename affordance (v0.5.57) ────────────
+   These are GENERAL rules (the sidebar dispatch view uses them too) and live
+   next to the M7 `.dispatch-group-*` rules in the upstream stylesheet. They
+   are restated here because the History rail renders the same head, so a
+   drop-in of this file alone is complete: the basename shows the working
+   path's basename, its `title` is the FULL path, and the hover-revealed
+   pencil renames the label to a display-only alias (localStorage
+   `rushi-project-labels`) — the path itself is never changed. */
+.dispatch-group-name { cursor: default; } /* M7 shows the path basename uppercase; a custom alias shows as typed */
+.dispatch-group-name.custom { text-transform: none; }
+.dispatch-group-edit { background: none; border: none; color: var(--text-muted); font-size: 11px; line-height: 1; padding: 1px 4px; border-radius: 4px; cursor: pointer; opacity: 0; transition: opacity .12s; }
+.dispatch-group-head:hover .dispatch-group-edit { opacity: .7; }
+.dispatch-group-edit:hover, .dispatch-group-edit.on { opacity: 1; color: var(--text); background: var(--bg-elev); box-shadow: var(--shadow); }
+.dispatch-group-input { font: inherit; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--text); background: var(--bg-elev); border: none; border-radius: 4px; padding: 1px 6px; min-width: 80px; max-width: 220px; box-shadow: var(--groove); }
+.dispatch-group-input:focus { outline: none; box-shadow: var(--shadow); }
