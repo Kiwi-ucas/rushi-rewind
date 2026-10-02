@@ -47,15 +47,25 @@ cp "$WEBUI/$DOC1"   "$HERE/docs/rewind-plugin.md"
 cp "$WEBUI/$DOC2"   "$HERE/docs/rewind-plugin-plan.md"
 
 # ── the stylesheet: the appended block + the additive rules ─────────
-# The block is everything from the plugin's section banner to EOF; the
-# WebUI's stylesheet ends with it (a new section is appended, never
-# inserted). A missing banner means the upstream layout changed.
-# (literal match — the banner carries a box-drawing rule and an em dash,
-# which awk's -v escape processing would mangle in a regex)
+# The block is everything from the plugin's section banner to the NEXT
+# section banner (or EOF): the sections are APPENDED to the upstream
+# stylesheet, never inserted, so a section is a contiguous suffix-run and
+# its end is the next top-level banner. (Taking it to EOF instead silently
+# swallows every later section — v0.5.59's time-inject section was appended
+# after rewind's and 22 of its lines landed in the rewind mirror.) A missing
+# banner means the upstream layout changed.
 BANNER='/* ── v0.5.56 Rewind plugin'
 grep -qF "$BANNER" "$WEBUI/$STYLE" || {
   echo "sync: the rewind section banner is gone from $STYLE" >&2; exit 1; }
-awk -v banner="$BANNER" 'index($0, banner) == 1 { on = 1 } on' "$WEBUI/$STYLE" \
+awk -v banner="$BANNER" '
+  index($0, banner) == 1 { on = 1; print; next }
+  on && /^\/\* ── / { exit }          # the banner that follows ends this one
+  # blank lines are held back: the ones inside the section are flushed by the
+  # next real line, the trailing run (the separator before the next banner, or
+  # the file end) is dropped, so the block is the section exactly
+  on && /^$/ { pend = pend "\n"; next }
+  on { if (pend != "") { printf "%s", pend; pend = "" } print }
+' "$WEBUI/$STYLE" \
   > "$HERE/client/.rewind-block.css.tmp"
 
 {

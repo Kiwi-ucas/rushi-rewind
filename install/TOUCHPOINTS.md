@@ -292,6 +292,13 @@ Upstream edits those three shared groups **in place**; `rewind-additive.css`
 restates them additively so an untouched stylesheet + this file behaves
 identically (see the file header).
 
+`client/rewind.css` is generated: `sync-from-webui.sh` takes this plugin's
+banner up to the **next** top-level section banner (or EOF) and prepends the
+additive rules. So the upstream section must stay one contiguous run — a
+plugin section appended after it ends the extraction (v0.5.59 appended the
+time-inject section at the end of `style.css`, and until the rule was
+tightened the rewind mirror silently grew 22 lines of it).
+
 ---
 
 ## 5. Build & verify
