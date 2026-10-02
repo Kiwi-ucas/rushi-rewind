@@ -45,10 +45,16 @@ rushi-rewind/
 ├─ install/TOUCHPOINTS.md        the install map (file, anchor, snippet)
 ├─ docs/rewind-plugin.md         design: the projection ↔ kernel semantics mapping
 ├─ docs/rewind-plugin-plan.md    the P1–P7 plan + the implementation record
-├─ e2e/rewind_probe.py          the CDP probe (110 assertions)
-├─ e2e/model_panel_probe.py     the shared CDP harness the probe imports
+├─ e2e/rewind_probe.py          the CDP probe (110 assertions) — LOCAL, untracked
+├─ e2e/model_panel_probe.py     the shared CDP harness the probe imports — LOCAL, untracked
 └─ scripts/sync-from-webui.sh   re-extract + verify + record the upstream rev
 ```
+
+The two `e2e/` python files are local verification tools: they are ignored by
+git (an account-wide rule — no e2e python test files are uploaded from these
+repositories) and are present only in a working tree that got them from
+`rushi-webui/e2e/` via `scripts/sync-from-webui.sh`. Nothing else here depends
+on them.
 
 ## Install into a rushi-webui checkout
 

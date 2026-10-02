@@ -311,6 +311,10 @@ python3 e2e/rewind_probe.py 8491             # 110 checks, PASS
 python3 e2e/layout_probe.py  <port>          # shell regression (scrollbar rules)
 ```
 
+(`e2e/` is untracked by design — the probes are local tools, not part of
+what this repository ships; `rushi-webui/e2e/` is gitignored too, and
+`scripts/sync-from-webui.sh` refreshes the local copies.)
+
 A restart of the running `rushi-web` is required for the new route; the WASM
 bundle is re-read from `dist/` on the next page load in debug builds.
 

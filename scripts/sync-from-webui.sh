@@ -42,6 +42,9 @@ cp "$WEBUI/$CLIENT" "$HERE/client/rewind.rs"
 cp "$WEBUI/$PROBE"  "$HERE/e2e/rewind_probe.py"
 # The CDP harness the probe imports (`from model_panel_probe import Cdp,
 # ws_connect`) — copied so the probe runs from this repo standalone.
+# NOTE: the two probe copies below stay LOCAL — e2e/ is gitignored and e2e
+# python test files are never uploaded from this account. They are convenience
+# copies of rushi-webui/e2e/, not part of what this repository ships.
 cp "$WEBUI/$CDP"    "$HERE/e2e/model_panel_probe.py"
 cp "$WEBUI/$DOC1"   "$HERE/docs/rewind-plugin.md"
 cp "$WEBUI/$DOC2"   "$HERE/docs/rewind-plugin-plan.md"
