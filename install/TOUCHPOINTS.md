@@ -52,7 +52,40 @@ async fn get_rewind_tree(
 }
 ```
 
-The route — the `POST` half pre-dates the plugin (`append_rewind`):
+```rust
+/// Write a `rewind` marker. The R1 pre-check
+/// (`docs/rewind-plugin-plan.md` 11.1) gates it: the kernel never refuses
+/// a marker, so the server answers what its projection would do with it.
+/// A pick that would be dropped is refused (409 + the verdict) and the log
+/// gains no marker that does nothing.
+async fn post_rewind(
+    State(st): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<PostRewind>,
+) -> impl IntoResponse {
+    let verdict = match st.sessions.events(&id).await {
+        Ok(events) => rewind::rewind_verdict(&events, body.target_seq, &body.mode),
+        Err(e) => return (StatusCode::NOT_FOUND, e.to_string()).into_response(),
+    };
+    if !matches!(verdict, rewind::RewindVerdict::Ok) {
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "ok": false, "verdict": verdict })),
+        )
+            .into_response();
+    }
+    match st.sessions.append_rewind(&id, body.target_seq, &body.mode).await {
+        Ok(()) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "ok": true, "verdict": verdict })),
+        )
+            .into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+```
+
+The route:
 
 ```rust
 .route("/api/sessions/{id}/rewind", get(get_rewind_tree).post(post_rewind))
@@ -65,8 +98,10 @@ The route — the `POST` half pre-dates the plugin (`append_rewind`):
 ### 3.1 `web-leptos/src/model.rs` — the data model
 
 Paste the rewind type block (`RewindNode`, `RewindMarker`, `RewindBoundary`,
-`RewindTree` + its helpers, `RewindTarget`) anywhere at module level — the
-upstream tree keeps it just above the `EssenceEntry` impl. Then add three
+`RewindTree` + its helpers, `RewindTarget`, and the v0.5.61 additions
+`Restore`, `RewindVerdict`, `IgnoredMarker` with their `label()` /
+`blocked()` / `notice()` impls) anywhere at module level — the upstream
+tree keeps it just above the `EssenceEntry` impl. Then add three
 `AppState` fields (and their `RwSignal` initializers in `AppState::new`):
 
 ```rust
@@ -102,14 +137,31 @@ pub async fn load_rewind_tree(id: &str) -> Result<crate::model::RewindTree, Stri
 
 /// Rewind plugin: write a `rewind` marker. `mode:"on"` keeps the target user
 /// message as the active tail and abandons everything after it; the fork
-/// stays in the log and can be re-entered later.
-pub async fn post_rewind(id: &str, target_seq: u64, mode: &str) -> Result<(), String> {
+/// stays in the log and can be re-entered later. v0.5.61: the R1 verdict
+/// rides back (200 = written, 409 = the kernel would ignore it, nothing
+/// written) so the dialog can show the notice instead of a bare error.
+pub async fn post_rewind(
+    id: &str,
+    target_seq: u64,
+    mode: &str,
+) -> Result<crate::model::RewindVerdict, String> {
     let payload = json!({ "target_seq": target_seq, "mode": mode });
-    let status = post_json(&format!("/api/sessions/{id}/rewind"), &payload).await?;
-    if status >= 400 {
-        Err(format!("rewind failed: HTTP {status}"))
-    } else {
-        Ok(())
+    let res = Request::post(&format!("/api/sessions/{id}/rewind"))
+        .json(&payload)
+        .map_err(|e| e.to_string())?
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    let status = res.status();
+    let text = res.text().await.map_err(|e| e.to_string())?;
+    let verdict = serde_json::from_str::<serde_json::Value>(&text)
+        .ok()
+        .and_then(|v| v.get("verdict").cloned())
+        .and_then(|v| serde_json::from_value(v).ok());
+    match verdict {
+        Some(v) => Ok(v),
+        None if status >= 400 => Err(format!("rewind failed: HTTP {status}")),
+        None => Ok(crate::model::RewindVerdict::Ok),
     }
 }
 ```

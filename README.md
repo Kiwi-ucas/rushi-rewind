@@ -45,7 +45,7 @@ rushi-rewind/
 ├─ install/TOUCHPOINTS.md        the install map (file, anchor, snippet)
 ├─ docs/rewind-plugin.md         design: the projection ↔ kernel semantics mapping
 ├─ docs/rewind-plugin-plan.md    the P1–P7 plan + the implementation record
-├─ e2e/rewind_probe.py          the CDP probe (110 assertions) — LOCAL, untracked
+├─ e2e/rewind_probe.py          the CDP probe (140 assertions) — LOCAL, untracked
 ├─ e2e/model_panel_probe.py     the shared CDP harness the probe imports — LOCAL, untracked
 └─ scripts/sync-from-webui.sh   re-extract + verify + record the upstream rev
 ```
@@ -73,16 +73,16 @@ Follow `install/TOUCHPOINTS.md`. In short:
 
 ```sh
 # server unit tests (the projection against the kernel's own fixtures)
-cd rushi-webui && cargo test -p rushi-web        # 42 passed (12 rewind)
+cd rushi-webui && cargo test -p rushi-web        # 54 passed (17 rewind)
 
 # frontend
 cd rushi-webui/web-leptos && trunk build          # clean
 
 # end-to-end (Chromium over CDP; builds its own fixtures and server)
-cd rushi-webui && python3 e2e/rewind_probe.py [port]   # PASS (110 checks)
+cd rushi-webui && python3 e2e/rewind_probe.py [port]   # PASS (140 checks)
 # ... or from this package (it finds ../rushi-webui/target/debug/rushi-web,
 # or whatever RUSHI_WEB_BIN points at):
-python3 e2e/rewind_probe.py [port]                     # PASS (110 checks)
+python3 e2e/rewind_probe.py [port]                     # PASS (140 checks)
 ```
 
 The probe drives a real browser against three fixture sessions it writes to
@@ -94,18 +94,21 @@ The probe drives a real browser against three fixture sessions it writes to
   grouped by that path and switch sessions in-view);
 * `rewindprobe3` — no round at all (the empty state), no `cwd` marker (the
   "(no project)" group);
-* `rewindprobe2` — a second session (the rail must switch in-view);
-* `rewindprobe3` — no round at all (the empty state).
+* `rewindprobe4` — the rewind × compaction fixture (v0.5.61): a compaction
+  boundary *inside* the span a later rewind abandons, a pick that would
+  strand a tool pair, and a marker the kernel's projection ignores.
 
 It asserts the rebuilt expanded view (layout, the rail **as the dispatch
 cards** — grouped by working path, each with its ▶ start / ■ stop loop toggle,
 scroller, both themes; and the group heads: the basename's tooltip is the full
 working path, and the display-only rename survives a reload),
 the recursive tree (abandoned / current / retracted / boundary / tooltips /
-legend), the dialog copy, the appended `{"type":"rewind","target_seq":N,"mode":"on"}`
-line, the live marker move, **re-entering an abandoned branch** (the log stays
-append-only), the card `⟲` button, the `#plugin-area` entry, and the
-loop-running guard (with a real `loop.pid`: every node locked, no dialog, the
+legend / the v0.5.61 `restore` annotation), the dialog copy, the appended
+`{"type":"rewind","target_seq":N,"mode":"on"}` line, the live marker move,
+**re-entering an abandoned branch** (the log stays append-only), the card `⟲`
+button, the `#plugin-area` entry, the v0.5.61 guards (**the `409` refusal of a
+pick the kernel would ignore — nothing written; the ignored-marker list and the
+tail notice in the plugin area**), and the loop-running guard (with a real `loop.pid`: every node locked, no dialog, the
 footer explains, the card buttons disabled) — ending with a **real ■ stop
 click** in the rail: the fake loop is a setsid group leader, so the server's
 `kill(-pid)` lands, and the check then sees `/api/loops` drop the session and
@@ -126,9 +129,20 @@ mirror — that is the signal to update `install/TOUCHPOINTS.md`.
 
 ## Status & limits
 
-* Implemented and verified (P1–P7 of `docs/rewind-plugin-plan.md`; upstream
-  `rushi-webui` v0.5.56). No kernel change: the plugin is a pure view plus a
-  write of an existing event type.
+* Implemented and verified (P1–P7 and, for the rewind × compaction work,
+  section 11 of `docs/rewind-plugin-plan.md`; upstream `rushi-webui` v0.5.61).
+  The plugin is a pure view plus a write of an existing event type: **no
+  kernel change** for the plugin side. It *depends* on the kernel fix in
+  `rushi` f145572 (`docs/rewind-fork-design.md` section 11 — the compaction
+  boundary is the last one **on the active path**); before it, a rewind past a
+  boundary created inside the abandoned branch resumed with that branch's
+  handoff and no history.
+* v0.5.61 (the visibility work, D-C): the server re-evaluates the kernel's own
+  decision (`rewind_verdict`) and refuses a pick that would be ignored
+  (`409`, nothing written); every node is annotated with what it restores
+  (`Raw` / `Framed{vN, from, to}` / `Unresumable`); and a rewind that did not
+  take effect is reported in the plugin area (`ignored` / `tail_ignored`). A
+  dropped marker no longer moves the tree's cursor.
 * The **client** module cannot be an out-of-tree crate: it binds to
   `rushi-webui`'s `AppState`, `api` and `timeutil`, and to the Leptos view
   tree (the tree needs `RwSignal` state shared with the transcript). Hence a
