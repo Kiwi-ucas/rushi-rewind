@@ -30,10 +30,11 @@ SERVER="bin/rushi-web/src/rewind.rs"
 CLIENT="web-leptos/src/rewind.rs"
 STYLE="web-leptos/style.css"
 PROBE="e2e/rewind_probe.py"
+FLOW="e2e/flow_check.py"
 CDP="e2e/model_panel_probe.py"
 DOC1="docs/rewind-plugin.md"
 DOC2="docs/rewind-plugin-plan.md"
-for f in "$SERVER" "$CLIENT" "$STYLE" "$PROBE" "$CDP" "$DOC1" "$DOC2"; do
+for f in "$SERVER" "$CLIENT" "$STYLE" "$PROBE" "$FLOW" "$CDP" "$DOC1" "$DOC2"; do
   need "$WEBUI/$f"
 done
 
@@ -46,6 +47,11 @@ cp "$WEBUI/$PROBE"  "$HERE/e2e/rewind_probe.py"
 # python test files are never uploaded from this account. They are convenience
 # copies of rushi-webui/e2e/, not part of what this repository ships.
 cp "$WEBUI/$CDP"    "$HERE/e2e/model_panel_probe.py"
+# Style B's geometry checker — standalone (no CDP): it asserts the flow
+# projection's invariants against a *live* server and every session it can
+# see. Like the probes above it stays LOCAL: the whole e2e/ directory is
+# gitignored (account rule — no e2e python in the rushi repositories).
+cp "$WEBUI/$FLOW"   "$HERE/e2e/flow_check.py"
 cp "$WEBUI/$DOC1"   "$HERE/docs/rewind-plugin.md"
 cp "$WEBUI/$DOC2"   "$HERE/docs/rewind-plugin-plan.md"
 

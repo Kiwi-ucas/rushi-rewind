@@ -46,6 +46,7 @@ rushi-rewind/
 ├─ docs/rewind-plugin.md         design: the projection ↔ kernel semantics mapping
 ├─ docs/rewind-plugin-plan.md    the P1–P7 plan + the implementation record
 ├─ e2e/rewind_probe.py          the CDP probe (140 assertions) — LOCAL, untracked
+├─ e2e/flow_check.py            Style B's geometry checker, live server — LOCAL, untracked
 ├─ e2e/model_panel_probe.py     the shared CDP harness the probe imports — LOCAL, untracked
 └─ scripts/sync-from-webui.sh   re-extract + verify + record the upstream rev
 ```
@@ -77,6 +78,9 @@ cd rushi-webui && cargo test -p rushi-web        # 54 passed (17 rewind)
 
 # frontend
 cd rushi-webui/web-leptos && trunk build          # clean
+
+# Style B's flow geometry, against a live server and every session it sees
+python3 e2e/flow_check.py 8480                          # 8 sessions, 0 problems
 
 # end-to-end (Chromium over CDP; builds its own fixtures and server)
 cd rushi-webui && python3 e2e/rewind_probe.py [port]   # PASS (140 checks)
