@@ -24,7 +24,11 @@ This repository **packages** the plugin:
 * the design doc and the plan/record,
 * the browser probe — `rushi-webui/e2e/` is **gitignored** upstream, so this
   repo is where the probe survives; it runs from either home (it resolves the
-  server binary itself, `RUSHI_WEB_BIN` overrides),
+  server binary itself, `RUSHI_WEB_BIN` overrides). It assumes a server at
+  **v0.5.58 or later**: the `■ stop` check kills a fake loop and requires the
+  session to leave `/api/loops` while the process is still an unreaped zombie,
+  which needs the zombie-aware liveness probe (`bin/rushi-web/src/process.rs`
+  in the upstream tree, see its `docs/loop-lamp-reconnect.md` §v0.5.58),
 * `scripts/sync-from-webui.sh`, which re-extracts all of the above from a
   `rushi-webui` checkout, verifies all 17 integration touch points still
   exist, and records the upstream revision in `UPSTREAM`.
@@ -41,7 +45,7 @@ rushi-rewind/
 ├─ install/TOUCHPOINTS.md        the install map (file, anchor, snippet)
 ├─ docs/rewind-plugin.md         design: the projection ↔ kernel semantics mapping
 ├─ docs/rewind-plugin-plan.md    the P1–P7 plan + the implementation record
-├─ e2e/rewind_probe.py          the CDP probe (107 assertions)
+├─ e2e/rewind_probe.py          the CDP probe (110 assertions)
 ├─ e2e/model_panel_probe.py     the shared CDP harness the probe imports
 └─ scripts/sync-from-webui.sh   re-extract + verify + record the upstream rev
 ```
@@ -69,10 +73,10 @@ cd rushi-webui && cargo test -p rushi-web        # 42 passed (12 rewind)
 cd rushi-webui/web-leptos && trunk build          # clean
 
 # end-to-end (Chromium over CDP; builds its own fixtures and server)
-cd rushi-webui && python3 e2e/rewind_probe.py [port]   # PASS (107 checks)
+cd rushi-webui && python3 e2e/rewind_probe.py [port]   # PASS (110 checks)
 # ... or from this package (it finds ../rushi-webui/target/debug/rushi-web,
 # or whatever RUSHI_WEB_BIN points at):
-python3 e2e/rewind_probe.py [port]                     # PASS (107 checks)
+python3 e2e/rewind_probe.py [port]                     # PASS (110 checks)
 ```
 
 The probe drives a real browser against three fixture sessions it writes to

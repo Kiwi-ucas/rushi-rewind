@@ -806,24 +806,43 @@ def main():
                      "if(!b) return 'nf'; const q=b.querySelector('.qa'); if(!q) return 'noqa';"
                      "q.click(); return 'ok';})()")
         res.check("R2: click ■ stop", click == "ok", str(click))
-        # The click POSTs /api/sessions/{id}/stop. Reap the fake loop BEFORE
-        # asking the server: until it is reaped it is a zombie, and the
-        # server's liveness probe is `kill(pid, 0)` — which succeeds on a
-        # zombie, so the session would still look like it was running.
-        try:
-            sleeper.wait(timeout=8)
-        except Exception:
-            pass
-        res.check("R2: the fake loop process got the signal", sleeper.poll() is not None,
-                  f"alive={sleeper.poll() is None}")
-        # and the server's own probe agrees: the session left `running`.
+        # v0.5.58 (b): the click POSTs /api/sessions/{id}/stop, the server
+        # SIGKILLs the group, and the session must leave `running` **while the
+        # fake loop is still an unreaped zombie** — that is the state a loop
+        # started elsewhere (the TUI, a previous server instance) sits in, and
+        # `kill(pid, 0)` alone calls it alive. We deliberately do NOT reap yet.
         gone = False
         for _ in range(32):
             if SESSION not in get_json(port, "/api/loops")["running"]:
                 gone = True
                 break
             time.sleep(0.25)
-        res.check("R2: the button stopped the loop server-side", gone,
+        res.check("R2: a zombie is not reported as a running loop (v0.5.58)",
+                  gone and get_json(port, "/api/loops")["running"] == [],
+                  str(get_json(port, "/api/loops")))
+        # Proof that the server reached its verdict about a ZOMBIE: the child
+        # is dead but nobody has reaped it, so its pid slot is still held —
+        # exactly what `kill(pid, 0)` alone reports as "alive". (Checked with
+        # signal 0, never with `poll()`: poll reaps.)
+        pid_held = True
+        try:
+            os.kill(sleeper.pid, 0)
+        except OSError:
+            pid_held = False
+        res.check("R2: that verdict was reached on an unreaped pid (signal 0 still succeeds)",
+                  pid_held, "the child was already reaped")
+        res.check("R2: /loop agrees (▶ start is available again)",
+                  not get_json(port, f"/api/sessions/{SESSION}/loop").get("running"),
+                  str(get_json(port, f"/api/sessions/{SESSION}/loop")))
+        # now reap, and confirm nothing about the server state changes
+        try:
+            sleeper.wait(timeout=8)
+        except Exception:
+            pass
+        res.check("R2: the fake loop process got the signal", sleeper.poll() is not None,
+                  f"alive={sleeper.poll() is None}")
+        res.check("R2: and the state is the same after reaping",
+                  get_json(port, "/api/loops")["running"] == [],
                   str(get_json(port, "/api/loops")))
         # and the client comes back to life: ▶ start + clickable nodes again.
         reload_page(c)

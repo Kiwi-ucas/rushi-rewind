@@ -1,7 +1,7 @@
 # The rushi-webui revision these mirrors were taken from.
 # Written by scripts/sync-from-webui.sh — do not edit.
 repo     = /Users/kiwi/Desktop/deepseek_harness/rushi/rushi-webui
-rev      = ecaad725fde6890c74cbb62e1def7032605482ff
-subject  = v0.5.57: group labels — full-path tooltip + a display-only rename
+rev      = 641ee92c44c318ddf2558d83523c8539e7dba60d
+subject  = v0.5.58: a zombie is not a running loop (liveness probe)
 worktree = clean
-synced   = 2026-10-02T14:22:39Z
+synced   = 2026-10-02T15:54:06Z

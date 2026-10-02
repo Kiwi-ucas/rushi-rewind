@@ -300,9 +300,19 @@ identically (see the file header).
 cargo build -p rushi-web                     # server binary (new route)
 cd web-leptos && trunk build                 # WASM bundle
 cargo test -p rushi-web                      # 42 passed (12 rewind projection)
-python3 e2e/rewind_probe.py 8491             # 107 checks, PASS
+python3 e2e/rewind_probe.py 8491             # 110 checks, PASS
 python3 e2e/layout_probe.py  <port>          # shell regression (scrollbar rules)
 ```
 
 A restart of the running `rushi-web` is required for the new route; the WASM
 bundle is re-read from `dist/` on the next page load in debug builds.
+
+**Upstream dependency (not part of this package).** The probe's `■ stop`
+check kills a fake loop and requires the session to leave `/api/loops`
+*while the process is still an unreaped zombie*. That needs upstream
+**v0.5.58's zombie-aware liveness probe** in `bin/rushi-web/src/process.rs`
+(`is_pid_alive = kill(pid, 0) && !is_zombie(pid)`, with a per-platform
+`is_zombie`); on an older server the check fails and, in real use, a loop
+started by the TUI / a previous server instance looks permanently running
+after a stop (no `▶ start`, the rewind guard stuck on). No rewind-plugin file
+depends on it — it is a general server fix — but the probe asserts it.
