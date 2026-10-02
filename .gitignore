@@ -1,0 +1,8 @@
+# Build / runtime noise
+__pycache__/
+*.pyc
+*.log
+target/
+
+# The extracted upstream block (a build product of the sync script)
+client/.rewind-block.css.tmp

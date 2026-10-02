@@ -1,0 +1,33 @@
+/* Rewind plugin — the additive half of the stylesheet (hand-maintained).
+ *
+ * The upstream tree edits these rules IN PLACE, because they are shared
+ * with other components:
+ *   1. `#app.layout-full #sidebar` / `#main` — the old `layout-full`
+ *      (stretched sidebar) rules are replaced by `display: none`, since
+ *      `layout-full` is now the History view.
+ *   2. `#theme-toggle svg/.ln/.fl` groups gain `#hist-theme` (the History
+ *      top bar's theme button reuses the same 16x16 icons).
+ *   3. The five capsule-scrollbar lists gain `#hist-tree`, `#hist-rail`
+ *      and `.rewind-list` (plugin rule 4 of plugin-authoring-rules.md).
+ *
+ * Re-stating all three ADDITIVELY here keeps the package a drop-in: an
+ * untouched stylesheet plus these rules behaves the same as the patched
+ * one. Duplicating them when the in-place merge is already present is
+ * harmless (same declarations, same specificity, later in the cascade).
+ */
+
+/* 1. layout-full = the full-window History view. */
+#app.layout-full #sidebar { display: none; }
+#app.layout-full #main { display: none; }
+
+/* 2. the top-bar theme button's icon (same shapes as the sidebar's). */
+#hist-theme svg { display: block; width: 16px; height: 16px; }
+#hist-theme .ln { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#hist-theme .fl { fill: currentColor; }
+
+/* 3. the plugin's three scrollers join the capsule-scrollbar rules. */
+#hist-tree, #hist-rail, .rewind-list { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) var(--scroll-track); }
+#hist-tree::-webkit-scrollbar, #hist-rail::-webkit-scrollbar, .rewind-list::-webkit-scrollbar { width: 10px; height: 10px; background: var(--scroll-track); }
+#hist-tree::-webkit-scrollbar-button, #hist-rail::-webkit-scrollbar-button, .rewind-list::-webkit-scrollbar-button { display: none; width: 0; height: 0; background: transparent; border: none; }
+#hist-tree::-webkit-scrollbar-track, #hist-rail::-webkit-scrollbar-track, .rewind-list::-webkit-scrollbar-track { background: var(--scroll-track); box-shadow: var(--scroll-groove); }
+#hist-tree::-webkit-scrollbar-thumb, #hist-rail::-webkit-scrollbar-thumb, .rewind-list::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border: 2px solid transparent; background-clip: padding-box; border-radius: 999px; margin: 2px 0; box-shadow: var(--scroll-relief); }

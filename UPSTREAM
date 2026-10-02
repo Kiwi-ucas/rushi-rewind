@@ -1,0 +1,7 @@
+# The rushi-webui revision these mirrors were taken from.
+# Written by scripts/sync-from-webui.sh — do not edit.
+repo     = /Users/kiwi/Desktop/deepseek_harness/rushi/rushi-webui
+rev      = b7ed469cf27de9593c39ec0a1272484ad99e4d95
+subject  = v0.5.56: rewind plugin (history tree) + the v0.5.52-v0.5.55 backlog
+worktree = clean
+synced   = 2026-10-02T03:06:52Z
