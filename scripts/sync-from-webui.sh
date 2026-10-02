@@ -89,6 +89,8 @@ check web-leptos/src/ws.rs             'st.rewind_gen.update(|g| *g += 1);'     
 check web-leptos/src/transcript.rs     'crate::rewind::quick_rewind_button('           "transcript.rs: the card button"
 check web-leptos/src/plugins.rs        'PluginDef { id: "rewind", label: "rewind" }'   "plugins.rs: the registry entry"
 check web-leptos/src/ui.rs             '"rewind" => crate::rewind::rewind_plugin_view'  "ui.rs: the dispatcher arm"
+check web-leptos/src/ui.rs             'pub(crate) fn session_card('                   "ui.rs: the shared session card"
+check web-leptos/src/ui.rs             'pub(crate) fn session_group_head('             "ui.rs: the shared group head"
 check web-leptos/style.css             '#history-view { flex: 1 1 auto'                "style.css: the section body"
 
 # ── record the upstream revision ────────────────────────────────────

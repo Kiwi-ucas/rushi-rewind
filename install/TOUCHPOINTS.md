@@ -1,6 +1,6 @@
 # Install map — every change the rewind plugin makes to a rushi-webui checkout
 
-Two files drop in, twelve spots wire them up. All snippets below are the
+Two files drop in, thirteen spots wire them up. All snippets below are the
 current upstream code (`rushi-webui` v0.5.56); `scripts/sync-from-webui.sh`
 verifies each anchor still exists.
 
@@ -224,6 +224,33 @@ The plugin module reuses three `ui.rs` helpers, so they must be
 * `set_theme_mode_stored` and `theme_icon` (the History top bar's theme
   button is the sidebar's, rendered in the new view).
 
+### 3.8 `web-leptos/src/ui.rs` — the session rail's shared card
+
+The History rail renders the **M7 dispatch view's session card** (v0.5.56), so
+two pieces of the dispatch view are extracted and shared instead of copied:
+
+```rust
+/// M7 (v0.5.56): the project-group header line — the working directory
+/// (basename as the label, the full path in the title) plus the card count.
+pub(crate) fn session_group_head(group_key: &str, count: usize) -> AnyView { ... }
+
+/// M7 (v0.5.56): the session card itself, shared by the sidebar's dispatch
+/// view and the rewind plugin's History rail.
+pub(crate) fn session_card(state: AppState, s: SessionInfo, stay: bool) -> AnyView { ... }
+```
+
+`dispatch_card` becomes a one-line wrapper (`session_card(state, s, false)`),
+and the card's click handler honours `stay`: `false` returns to the `split`
+layout (the dispatch view), `true` keeps the full-window view (the rail
+switches sessions in place). The `…` rename/delete menu is shared as-is —
+`#sess-menu` is `position: fixed` and mounted *outside* `#sidebar`, so it is
+never hidden by `layout-full`.
+
+The rail then needs only the upstream M7 rules (`.dispatch-group`,
+`.dispatch-card`, `.dc-*`, `.qa`, `.sess-more`) — they are already in every
+`style.css`, so `client/rewind.css` adds nothing but the rail's own column
+compaction (`#hist-rail .dispatch-card` etc.).
+
 ---
 
 ## 4. Stylesheet
@@ -253,7 +280,7 @@ identically (see the file header).
 cargo build -p rushi-web                     # server binary (new route)
 cd web-leptos && trunk build                 # WASM bundle
 cargo test -p rushi-web                      # 42 passed (12 rewind projection)
-python3 e2e/rewind_probe.py 8491             # 71 checks, PASS
+python3 e2e/rewind_probe.py 8491             # 88 checks, PASS
 python3 e2e/layout_probe.py  <port>          # shell regression (scrollbar rules)
 ```
 

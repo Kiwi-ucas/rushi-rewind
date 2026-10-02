@@ -97,6 +97,15 @@ FIXTURE = [
      "first_kept_seq": 1, "summary": "early rounds folded"},
 ]
 
+# v0.5.56: the History rail renders the dispatch-view session cards grouped by
+# the session's **working path** (its `cwd` marker). Two fixtures get a (real)
+# project directory, the third gets none — the "(no project)" bucket. The dirs
+# live OUTSIDE the sessions root (the server lists every subdirectory of it as
+# a session).
+PROJ_BASE = os.path.join(os.path.dirname(ROOT), "projects")
+PROJ_A = os.path.join(PROJ_BASE, "alpha-project")
+PROJ_B = os.path.join(PROJ_BASE, "beta-project")
+
 # A second session: the rail must switch sessions in-view (C2) and refetch.
 FIXTURE2 = [
     {"v": 1, "type": "user_message", "ts": "2026-10-02T02:00:00Z", "id": "n1",
@@ -151,6 +160,16 @@ def write_fixture():
             p = os.path.join(d, junk)
             if os.path.exists(p):
                 os.remove(p)
+    # the working-path markers: SESSION -> alpha, SESSION2 -> beta,
+    # SESSION3 -> none (the "(no project)" group).
+    for name, cwd in ((SESSION, PROJ_A), (SESSION2, PROJ_B), (SESSION3, None)):
+        p = os.path.join(ROOT, name, ".cwd")
+        if cwd:
+            os.makedirs(cwd, exist_ok=True)
+            with open(p, "w") as f:
+                f.write(cwd + "\n")
+        elif os.path.exists(p):
+            os.remove(p)
 
 
 def log_lines():
@@ -186,14 +205,28 @@ TREE = """(function(){
   const cur = q('#hist-tree .rw-node.current');
   const r = el => { if (!el) return null; const b = el.getBoundingClientRect();
     return {w: Math.round(b.width), h: Math.round(b.height)}; };
+  const nm = c => ((c.querySelector('.dc-name')||{}).innerText||'').trim();
   return JSON.stringify({
     appClass: app ? app.className : null,
     sidebarDisplay: sb ? getComputedStyle(sb).display : null,
     mainDisplay: main ? getComputedStyle(main).display : null,
     view: !!hv, viewBox: r(hv),
-    rail: [...document.querySelectorAll('#hist-rail .rw-sess')].map(b=>b.innerText.trim()),
-    railOn: [...document.querySelectorAll('#hist-rail .rw-sess.on')].map(b=>b.innerText.trim()),
-    groups: [...document.querySelectorAll('#hist-rail .rw-group-head')].map(x=>x.innerText.trim()),
+    rail: [...document.querySelectorAll('#hist-rail .dispatch-card')].map(c=>nm(c)),
+    railOn: [...document.querySelectorAll('#hist-rail .dispatch-card.active')].map(c=>nm(c)),
+    // v0.5.56: the rail IS the M7 dispatch view — one .dispatch-group per
+    // working path, .dispatch-card per session, each with its ▶/■ loop toggle.
+    groups: [...document.querySelectorAll('#hist-rail .dispatch-group')].map(g=>({
+      label: (((g.querySelector('.dispatch-group-head')||{}).childNodes||[])[0]||{}).textContent||'',
+      count: Number(((g.querySelector('.dispatch-group-count')||{}).innerText||'0')),
+      title: (g.querySelector('.dispatch-group-head')||{}).title||'',
+      cards: [...g.querySelectorAll('.dispatch-card')].map(c=>nm(c)),
+      tog: [...g.querySelectorAll('.dispatch-card .qa')].map(b=>
+        ({txt:b.innerText.trim(), cls:b.className, title:b.title}))})),
+    cards: [...document.querySelectorAll('#hist-rail .dispatch-card')].map(c=>({
+      name: nm(c), cls: c.className,
+      time: ((c.querySelector('.dc-time')||{}).innerText||''),
+      menu: !!c.querySelector('.sess-more'),
+      go: !!c.querySelector('.qa.qa-go'), stop: !!c.querySelector('.qa.qa-stop')})),
     nodes: nodes.map(n=>({seq:n.dataset.seq, cls:n.className,
       round:(n.querySelector('.rw-round')||{}).innerText||'',
       sum:(n.querySelector('.rw-sum')||{}).innerText||'',
@@ -284,6 +317,16 @@ OPEN_PLUGIN = ("(function(){const b=document.querySelector('#plugin-list'); if(!
 PICK_REWIND_PLUGIN = ("(function(){const items=[...document.querySelectorAll('#plugin-menu .plugin-item')];"
                       "const b=items.find(x=>x.innerText.trim().toLowerCase()==='rewind');"
                       "if(!b) return 'nf'; b.click(); return 'ok';})()")
+
+def click_rail(name):
+    """Click one session's card in the History rail. The rail carries the M7
+    dispatch cards (v0.5.56), so the match is on the card's `.dc-name` — an
+    exact name, never a substring (`rewindprobe` is a prefix of
+    `rewindprobe2`)."""
+    return ("(function(){const b=[...document.querySelectorAll('#hist-rail .dispatch-card')]"
+            ".find(x=>((x.querySelector('.dc-name')||{}).innerText||'').trim()==="
+            f"'{name}'); if(!b) return 'nf'; b.click(); return 'ok';}})()")
+
 
 SELECT_SESSION = ("(function(){const items=[...document.querySelectorAll('#session-list .session-item')];"
                   "const it=items.find(x=>x.innerText.includes('" + SESSION + "'));"
@@ -424,6 +467,39 @@ def main():
                   t["railOn"] == [SESSION] and len(t["groups"]) >= 1, str(t["railOn"]))
         res.check("P3: the tree is the scroller", t["treeScroll"] == "auto", str(t["treeScroll"]))
 
+        # ── R1 (v0.5.56): the rail = the dispatch cards, grouped by
+        #    working path (`cwd` marker), each with its loop start/stop ──
+        gl = {g["label"].strip(): g for g in t["groups"]}
+        res.check("R1: one group per working path (+ the no-project bucket)",
+                  sorted(gl) == ["(no project)", "alpha-project", "beta-project"],
+                  str(sorted(gl)))
+        res.check("R1: the group head labels the path and counts its cards",
+                  all(g["count"] == len(g["cards"]) == 1 for g in t["groups"]),
+                  str([(g["label"], g["count"], g["cards"]) for g in t["groups"]]))
+        res.check("R1: the head's title is the full working path",
+                  gl["alpha-project"]["title"] == PROJ_A and gl["beta-project"]["title"] == PROJ_B,
+                  str({k: v["title"] for k, v in gl.items()}))
+        res.check("R1: the cards land in their own project's group",
+                  gl["alpha-project"]["cards"] == [SESSION]
+                  and gl["beta-project"]["cards"] == [SESSION2]
+                  and gl["(no project)"]["cards"] == [SESSION3],
+                  str({k: v["cards"] for k, v in gl.items()}))
+        res.check("R1: the rail card is the dispatch card (name/time/menu)",
+                  sorted(cd["name"] for cd in t["cards"]) == sorted([SESSION, SESSION2, SESSION3])
+                  and all(cd["time"] and cd["menu"] for cd in t["cards"]),
+                  str(t["cards"]))
+        res.check("R1: the selected card carries the dispatch 'active' accent",
+                  any("active" in cd["cls"] for cd in t["cards"] if cd["name"] == SESSION),
+                  str([cd["cls"] for cd in t["cards"]]))
+        res.check("R2: every rail card has a loop toggle (▶ start while idle)",
+                  len(t["cards"]) == 3 and all(cd["go"] and not cd["stop"] for cd in t["cards"]),
+                  str(t["cards"]))
+        res.check("R2: the toggle is the dispatch 'start' button",
+                  all(tg["txt"] == "\u25B6 start" and "qa-go" in tg["cls"]
+                      and tg["title"] == "start / stop this session's loop"
+                      for g in t["groups"] for tg in g["tog"]),
+                  str([tg for g in t["groups"] for tg in g["tog"]]))
+
         # ── P4: the tree ─────────────────────────────────────────────
         res.check("P4: one node per round (4)", len(t["nodes"]) == 4, str(len(t["nodes"])))
         res.check("P4: exactly one abandoned branch (C)",
@@ -469,9 +545,7 @@ def main():
         res.check("P3: idle footer hint", IDLE_HINT in t["foot"], t["foot"])
 
         # ── C2: the rail switches sessions in-view (rail + tree reload) ─
-        c.ev("(function(){const b=[...document.querySelectorAll('#hist-rail .rw-sess')]"
-             f".find(x=>x.innerText.includes('{SESSION2}')); if(!b) return 'nf';"
-             "b.click(); return 'ok';})()")
+        c.ev(click_rail(SESSION2))
         sw = wait_for(c, TREE, lambda v: isinstance(v, dict) and v.get("railOn") == [SESSION2]
                       and len(v.get("nodes", [])) == 2, timeout=8)
         sw = json.loads(sw) if isinstance(sw, str) else sw
@@ -483,9 +557,7 @@ def main():
         res.check("C2: the title follows the session", title == SESSION2, str(title))
         res.check("C2: the view stays full-window",
                   "layout-full" in (c.ev("document.querySelector('#app').className") or ""))
-        c.ev("(function(){const b=[...document.querySelectorAll('#hist-rail .rw-sess')]"
-             f".find(x=>x.innerText.includes('{SESSION}')); if(!b) return 'nf';"
-             "b.click(); return 'ok';})()")
+        c.ev(click_rail(SESSION))
         back = wait_for(c, TREE, lambda v: isinstance(v, dict) and len(v.get("nodes", [])) == 4
                         and v.get("railOn") == [SESSION], timeout=8)
         back = json.loads(back) if isinstance(back, str) else back
@@ -493,9 +565,7 @@ def main():
                   len(back["nodes"]) == 4 and back["current"]["seq"] == "9", str(back.get("current")))
 
         # ── empty states (§3): a session with no round ───────────────
-        c.ev("(function(){const b=[...document.querySelectorAll('#hist-rail .rw-sess')]"
-             f".find(x=>x.innerText.includes('{SESSION3}')); if(!b) return 'nf';"
-             "b.click(); return 'ok';})()")
+        c.ev(click_rail(SESSION3))
         empty = wait_for(c, "JSON.stringify({t:(document.querySelector('#hist-tree .rw-empty')||{})"
                             ".innerText||'', locked:document.querySelectorAll('#hist-tree .rw-node').length})",
                          lambda v: isinstance(v, dict) and v.get("t", "").startswith("no rounds yet"), timeout=8)
@@ -503,9 +573,7 @@ def main():
         res.check("empty state: 'no rounds yet' for a session without a round",
                   empty.get("t", "").startswith("no rounds yet") and empty.get("locked") == 0,
                   str(empty))
-        c.ev("(function(){const b=[...document.querySelectorAll('#hist-rail .rw-sess')]"
-             f".find(x=>x.innerText.includes('{SESSION}')); if(!b) return 'nf';"
-             "b.click(); return 'ok';})()")
+        c.ev(click_rail(SESSION))
         wait_for(c, TREE, lambda v: isinstance(v, dict) and len(v.get("nodes", [])) == 4
                  and v.get("railOn") == [SESSION], timeout=8)
 
@@ -565,7 +633,10 @@ def main():
 
         # ── the loop-running guard (decision 5) ──────────────────────
         write_fixture()  # back to the canonical 12 lines
-        sleeper = subprocess.Popen(["sleep", "600"])
+        # start_new_session: the fake loop is its own process-group leader, so
+        # the server's `kill(-pid, SIGKILL)` finds it — which is what lets the
+        # rail's ■ stop button be tested for real further down.
+        sleeper = subprocess.Popen(["sleep", "600"], start_new_session=True)
         sleep_pid = sleeper.pid
         with open(os.path.join(ROOT, SESSION, "loop.pid"), "w") as f:
             f.write(str(sleep_pid))
@@ -574,10 +645,8 @@ def main():
                   SESSION in get_json(port, "/api/loops")["running"],
                   str(get_json(port, "/api/loops")))
         reload_page(c)
-        wait_for(c, "document.querySelectorAll('#hist-rail .rw-sess').length", lambda v: isinstance(v, int) and v >= 1)
-        rail_click = c.ev("(function(){const b=[...document.querySelectorAll('#hist-rail .rw-sess')]"
-                          ".find(x=>x.innerText.includes('" + SESSION + "')); if(!b) return 'nf';"
-                          "b.click(); return 'ok';})()")
+        wait_for(c, "document.querySelectorAll('#hist-rail .dispatch-card').length", lambda v: isinstance(v, int) and v >= 1)
+        rail_click = c.ev(click_rail(SESSION))
         res.check("C2: the rail switches the session in-view", rail_click == "ok", str(rail_click))
         tl = wait_for(c, TREE, lambda v: isinstance(v, dict) and len(v.get("nodes", [])) == 4)
         tl = json.loads(tl) if isinstance(tl, str) else tl
@@ -598,6 +667,64 @@ def main():
                   str(q["disabled"]))
         res.check("guard: the disabled cards say why",
                   all(t == LOCKED_HINT for t in q["titles"]), str(q["titles"]))
+
+        # ── R2 (v0.5.56): the rail's loop toggle, driven for real ────
+        # The fixture's `loop.pid` holds a live setsid sleeper, so the server
+        # reports the session as running and the rail card must offer ■ stop.
+        # (The guard checks above left the History view to drive the
+        # transcript's own buttons, so step back in first.)
+        res.check("R2: back into the History view", c.ev(OPEN_HISTORY) == "ok")
+        tl = wait_for(c, TREE, lambda v: isinstance(v, dict) and len(v.get("nodes", [])) == 4
+                      and v.get("locked") == 4)
+        tl = json.loads(tl) if isinstance(tl, str) else tl
+        res.check("R2: the running session's card offers ■ stop",
+                  any(cd["name"] == SESSION and cd["stop"] and not cd["go"] for cd in tl["cards"]),
+                  str(tl["cards"]))
+        res.check("R2: the ■ stop button is the dispatch 'stop' button",
+                  any(tg["txt"] == "\u25A0 stop" and "qa-stop" in tg["cls"]
+                      and tg["title"] == "start / stop this session's loop"
+                      for g in tl["groups"] for tg in g["tog"]),
+                  str([tg for g in tl["groups"] for tg in g["tog"]]))
+        click = c.ev("(function(){const b=[...document.querySelectorAll('#hist-rail .dispatch-card')]"
+                     f".find(x=>((x.querySelector('.dc-name')||{{}}).innerText||'').trim()==='{SESSION}');"
+                     "if(!b) return 'nf'; const q=b.querySelector('.qa'); if(!q) return 'noqa';"
+                     "q.click(); return 'ok';})()")
+        res.check("R2: click ■ stop", click == "ok", str(click))
+        # The click POSTs /api/sessions/{id}/stop. Reap the fake loop BEFORE
+        # asking the server: until it is reaped it is a zombie, and the
+        # server's liveness probe is `kill(pid, 0)` — which succeeds on a
+        # zombie, so the session would still look like it was running.
+        try:
+            sleeper.wait(timeout=8)
+        except Exception:
+            pass
+        res.check("R2: the fake loop process got the signal", sleeper.poll() is not None,
+                  f"alive={sleeper.poll() is None}")
+        # and the server's own probe agrees: the session left `running`.
+        gone = False
+        for _ in range(32):
+            if SESSION not in get_json(port, "/api/loops")["running"]:
+                gone = True
+                break
+            time.sleep(0.25)
+        res.check("R2: the button stopped the loop server-side", gone,
+                  str(get_json(port, "/api/loops")))
+        # and the client comes back to life: ▶ start + clickable nodes again.
+        reload_page(c)
+        wait_for(c, "document.querySelectorAll('#hist-tree .rw-node').length", lambda v: v == 4)
+        c.ev(click_rail(SESSION))
+        tz = wait_for(c, TREE, lambda v: isinstance(v, dict) and len(v.get("nodes", [])) == 4
+                      and v.get("locked") == 0)
+        tz = json.loads(tz) if isinstance(tz, str) else tz
+        res.check("R2: with the loop stopped the card is back to ▶ start",
+                  any(cd["name"] == SESSION and cd["go"] and not cd["stop"] for cd in tz["cards"]),
+                  str(tz["cards"]))
+        res.check("R2: and the tree is clickable again",
+                  tz["locked"] == 0 and IDLE_HINT in tz["foot"]
+                  and all("disabled while the loop is running" not in n["tip"] for n in tz["nodes"]),
+                  f"{tz['locked']} / {tz['foot']}")
+        res.check("R2: stopping wrote no event (the guard is client-side only)",
+                  len(log_lines()) == 12, str(len(log_lines())))
 
         log("")
         if res.fails:

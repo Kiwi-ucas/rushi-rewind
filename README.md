@@ -26,7 +26,7 @@ This repository **packages** the plugin:
   repo is where the probe survives; it runs from either home (it resolves the
   server binary itself, `RUSHI_WEB_BIN` overrides),
 * `scripts/sync-from-webui.sh`, which re-extracts all of the above from a
-  `rushi-webui` checkout, verifies all 14 integration touch points still
+  `rushi-webui` checkout, verifies all 16 integration touch points still
   exist, and records the upstream revision in `UPSTREAM`.
 
 ```
@@ -41,7 +41,7 @@ rushi-rewind/
 ├─ install/TOUCHPOINTS.md        the install map (file, anchor, snippet)
 ├─ docs/rewind-plugin.md         design: the projection ↔ kernel semantics mapping
 ├─ docs/rewind-plugin-plan.md    the P1–P7 plan + the implementation record
-├─ e2e/rewind_probe.py          the CDP probe (71 assertions)
+├─ e2e/rewind_probe.py          the CDP probe (88 assertions)
 ├─ e2e/model_panel_probe.py     the shared CDP harness the probe imports
 └─ scripts/sync-from-webui.sh   re-extract + verify + record the upstream rev
 ```
@@ -69,26 +69,36 @@ cd rushi-webui && cargo test -p rushi-web        # 42 passed (12 rewind)
 cd rushi-webui/web-leptos && trunk build          # clean
 
 # end-to-end (Chromium over CDP; builds its own fixtures and server)
-cd rushi-webui && python3 e2e/rewind_probe.py [port]   # PASS (71 checks)
+cd rushi-webui && python3 e2e/rewind_probe.py [port]   # PASS (88 checks)
 # ... or from this package (it finds ../rushi-webui/target/debug/rushi-web,
 # or whatever RUSHI_WEB_BIN points at):
-python3 e2e/rewind_probe.py [port]                     # PASS (71 checks)
+python3 e2e/rewind_probe.py [port]                     # PASS (88 checks)
 ```
 
 The probe drives a real browser against three fixture sessions it writes to
 `/tmp/rw-e2e/sessions/` and a throwaway `rushi-web`:
 
-* `rewindprobe` — 12 lines, one fork at line 8 (C abandoned, D current);
+* `rewindprobe` — 12 lines, one fork at line 8 (C abandoned, D current),
+  `.cwd` = `alpha-project`;
+* `rewindprobe2` — a second session, `.cwd` = `beta-project` (the rail must be
+  grouped by that path and switch sessions in-view);
+* `rewindprobe3` — no round at all (the empty state), no `cwd` marker (the
+  "(no project)" group);
 * `rewindprobe2` — a second session (the rail must switch in-view);
 * `rewindprobe3` — no round at all (the empty state).
 
-It asserts the rebuilt expanded view (layout, rail, scroller, both themes),
+It asserts the rebuilt expanded view (layout, the rail **as the dispatch
+cards** — grouped by working path, each with its ▶ start / ■ stop loop toggle,
+scroller, both themes),
 the recursive tree (abandoned / current / retracted / boundary / tooltips /
 legend), the dialog copy, the appended `{"type":"rewind","target_seq":N,"mode":"on"}`
 line, the live marker move, **re-entering an abandoned branch** (the log stays
 append-only), the card `⟲` button, the `#plugin-area` entry, and the
 loop-running guard (with a real `loop.pid`: every node locked, no dialog, the
-footer explains, the card buttons disabled).
+footer explains, the card buttons disabled) — ending with a **real ■ stop
+click** in the rail: the fake loop is a setsid group leader, so the server's
+`kill(-pid)` lands, and the check then sees `/api/loops` drop the session and
+the card come back as ▶ start.
 
 ## Sync / provenance
 
@@ -97,7 +107,7 @@ scripts/sync-from-webui.sh [path-to-rushi-webui]     # default: ../rushi-webui
 ```
 
 The script overwrites `server/`, `client/rewind.rs`, `docs/`, `e2e/` and the
-generated `client/rewind.css`, checks the 14 touch points, and rewrites
+generated `client/rewind.css`, checks the 16 touch points, and rewrites
 `UPSTREAM`. Hand-maintained files (this README, `install/`, the two
 `client/*.css` inputs) are never touched. If a touch point is gone, the script
 fails with the file and the missing marker rather than shipping a stale
