@@ -30,8 +30,10 @@ This repository **packages** the plugin:
   which needs the zombie-aware liveness probe (`bin/rushi-web/src/process.rs`
   in the upstream tree, see its `docs/loop-lamp-reconnect.md` §v0.5.58),
 * `scripts/sync-from-webui.sh`, which re-extracts all of the above from a
-  `rushi-webui` checkout, verifies all 17 integration touch points still
-  exist, and records the upstream revision in `UPSTREAM`.
+  `rushi-webui` checkout, verifies the integration touch points still exist,
+  checks that the extracted stylesheet block still contains the plugin's
+  newest rules (canaries, after a sub-banner once silently truncated it), and
+  records the upstream revision in `UPSTREAM`.
 
 ```
 rushi-rewind/
@@ -47,11 +49,12 @@ rushi-rewind/
 ├─ docs/rewind-plugin-plan.md    the P1–P7 plan + the implementation record
 ├─ e2e/rewind_probe.py          the CDP probe (140 assertions) — LOCAL, untracked
 ├─ e2e/flow_check.py            Style B's geometry checker, live server — LOCAL, untracked
+├─ e2e/flow_style_b_probe.py    Style B's browser probe (60 checks) — LOCAL, untracked
 ├─ e2e/model_panel_probe.py     the shared CDP harness the probe imports — LOCAL, untracked
 └─ scripts/sync-from-webui.sh   re-extract + verify + record the upstream rev
 ```
 
-The two `e2e/` python files are local verification tools: they are ignored by
+The `e2e/` python files are local verification tools: they are ignored by
 git (an account-wide rule — no e2e python test files are uploaded from these
 repositories) and are present only in a working tree that got them from
 `rushi-webui/e2e/` via `scripts/sync-from-webui.sh`. Nothing else here depends
@@ -74,13 +77,16 @@ Follow `install/TOUCHPOINTS.md`. In short:
 
 ```sh
 # server unit tests (the projection against the kernel's own fixtures)
-cd rushi-webui && cargo test -p rushi-web        # 54 passed (17 rewind)
+cd rushi-webui && cargo test -p rushi-web        # 65 passed (flow layout + node detail)
 
 # frontend
 cd rushi-webui/web-leptos && trunk build          # clean
 
 # Style B's flow geometry, against a live server and every session it sees
 python3 e2e/flow_check.py 8480                          # 8 sessions, 0 problems
+# ... and its browser surfaces (the switch, the 1:2 split, the scene, the
+# panel, the dialog, the 117-round session, the 3D, the paint in both themes)
+python3 e2e/flow_style_b_probe.py 8480                  # 60 checks, 0 failed
 
 # end-to-end (Chromium over CDP; builds its own fixtures and server)
 cd rushi-webui && python3 e2e/rewind_probe.py [port]   # PASS (140 checks)
@@ -133,8 +139,15 @@ mirror — that is the signal to update `install/TOUCHPOINTS.md`.
 
 ## Status & limits
 
-* Implemented and verified (P1–P7 and, for the rewind × compaction work,
-  section 11 of `docs/rewind-plugin-plan.md`; upstream `rushi-webui` v0.5.61).
+* Implemented and verified (P1–P7, the rewind × compaction work of section 11,
+  **and Style B — the flow view, section 10 / §10.8 of
+  `docs/rewind-plugin-plan.md`**; upstream `rushi-webui` v0.5.66).
+  **Two styles, one tree:** the History view's list (the recursive rounds) is
+  the default, and `flow` — the horizontal `. - . - .` line with the branches
+  forking off it, a 1:2 split with the selected round's full text above and
+  the scene below, an auto-fit scene that pans by drag/wheel and turns the
+  branches in 3D — is one click away in the top bar. Rewind is still only ever
+  triggered from the panel's button → the one confirm dialog.
   The plugin is a pure view plus a write of an existing event type: **no
   kernel change** for the plugin side. It *depends* on the kernel fix in
   `rushi` f145572 (`docs/rewind-fork-design.md` section 11 — the compaction
@@ -147,6 +160,17 @@ mirror — that is the signal to update `install/TOUCHPOINTS.md`.
   (`Raw` / `Framed{vN, from, to}` / `Unresumable`); and a rewind that did not
   take effect is reported in the plugin area (`ignored` / `tail_ignored`). A
   dropped marker no longer moves the tree's cursor.
+* **Long sessions: use the flow style.** The list style renders one DOM
+  level per round and exhausts the wasm stack past roughly 32–80 rounds
+  (`Webui` 117, `alpha` 82 on this host: the app survives, the tree does not
+  paint, the console says `RuntimeError: memory access out of bounds`). The
+  flow style's **flat projection** draws every session measured — 117 rounds
+  included. Both rewind reads also parse past serde_json's 128-level limit
+  (`api::parse_deep`); without it those long sessions failed the parse and
+  History sat on "loading…" (fixed in upstream v0.5.65).
+* A flow scene that **fits** its panel has nothing to pan, so its branches
+  keep the static turn their position under the light implies; long sessions
+  pan and turn as designed (plan §10.8).
 * The **client** module cannot be an out-of-tree crate: it binds to
   `rushi-webui`'s `AppState`, `api` and `timeutil`, and to the Leptos view
   tree (the tree needs `RwSignal` state shared with the transcript). Hence a

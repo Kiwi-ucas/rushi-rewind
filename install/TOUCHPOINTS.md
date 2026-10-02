@@ -85,10 +85,30 @@ async fn post_rewind(
 }
 ```
 
-The route:
+```rust
+/// Style B (v0.5.64): ONE round in full, by round seq — the flow view's
+/// detail panel. Verbatim text, never a summary; 404 for a seq that is not
+/// a round. Kept as a route (rather than fattening the tree) so the payload
+/// stays bounded per interaction — see the plan's D8 and 10.8.
+async fn get_rewind_node(
+    State(st): State<AppState>,
+    Path((id, seq)): Path<(String, u64)>,
+) -> impl IntoResponse {
+    match st.sessions.events(&id).await {
+        Ok(events) => match rewind::node_detail(&events, seq) {
+            Some(d) => (StatusCode::OK, Json(d)).into_response(),
+            None => (StatusCode::NOT_FOUND, "not a round".to_string()).into_response(),
+        },
+        Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
+    }
+}
+```
+
+The routes:
 
 ```rust
 .route("/api/sessions/{id}/rewind", get(get_rewind_tree).post(post_rewind))
+.route("/api/sessions/{id}/rewind/node/{seq}", get(get_rewind_node))
 ```
 
 ---
@@ -325,6 +345,58 @@ upstream they live next to the M7 `.dispatch-group-*` rules.
 
 ---
 
+### 3.9 Style B — the flow view's client wiring (v0.5.65)
+
+The flow style is the **same tree read a second way**: no second fetch, no
+second cache, no second invalidation path. Its wiring is:
+
+**`web-leptos/src/model.rs`** — the flat projection's types (mirroring the
+server's `Flow`), plus three `AppState` fields:
+
+```rust
+pub struct RewindFlow { pub nodes: Vec<FlowNode>, pub edges: Vec<FlowEdge>,
+                        pub branches: Vec<FlowBranch>, pub cols: usize,
+                        pub lanes: i32, pub main_len: usize }
+pub struct FlowNode   { /* seq, x, lane, main, state, round, ts, events, summary */ }
+pub struct FlowEdge   { /* from, to, main, lane */ }
+pub struct FlowBranch { /* root, lane, from_x, to_x */ }
+pub struct RewindDetail { /* seq, round, ts, text, events, state, current, retracted */ }
+
+// AppState:
+pub rw_view: RwSignal<String>,          // "tree" | "flow" (persisted)
+pub rw_selected: RwSignal<Option<u64>>, // the round the panel shows
+pub rw_detail: RwSignal<Option<RewindDetail>>,
+```
+
+**`web-leptos/src/api.rs`** — `load_rewind_detail(id, seq)`, and both rewind
+reads parse through `parse_deep`:
+
+```rust
+/// serde_json refuses past 128 nesting levels, and the tree nests one
+/// `children` array per round — a chain of ~64 rounds failed the whole
+/// response (v0.5.65). `unbounded_depth` + this parse is the fix.
+fn parse_deep<T: DeserializeOwned>(body: &str) -> Result<T, String> { ... }
+```
+
+**`web-leptos/src/lib.rs`** — one extra effect registration beside
+`register_tree_effect`:
+
+```rust
+crate::rewind::register_flow_effects(state);   // preselect (D5) + scene metrics
+```
+
+**`web-leptos/src/rewind.rs`** — the plugin's own additions:
+`read_view_mode` / `set_view_mode` (localStorage `rushi-rw-view`),
+`select_node`, `register_flow_effects`, `sync_scene_metrics` (writes
+`--halfpw` / `--denom` / `--bx` at layout time), `mark_scroll` (the one value
+a scroll frame writes), `hist_style_switch`, `flow_view`, `flow_detail`,
+`flow_scene`, `flow_node_button`.
+
+**`web-leptos/src/ws.rs`** — unchanged: the same `rewind_gen` bump
+invalidates both styles.
+
+---
+
 ## 4. Stylesheet
 
 `web-leptos/style.css` — append `client/rewind.css` (the plugin's section
@@ -344,12 +416,27 @@ Upstream edits those three shared groups **in place**; `rewind-additive.css`
 restates them additively so an untouched stylesheet + this file behaves
 identically (see the file header).
 
+Style B adds a second, later sub-section to the same block
+(`/* ── v0.5.65 Rewind Style B — the "flow" view */` and the `/* B7: ... */`
+part): `#rw-split`, `#rw-detail` / `.fd-*`, `#rw-flow-scroll` /
+`#rw-flow-track` / `.rw3-*`, and `.fd-text` in the five capsule-scrollbar
+rules. Both live **inside** the plugin's section, i.e. before the
+time-inject banner.
+
 `client/rewind.css` is generated: `sync-from-webui.sh` takes this plugin's
-banner up to the **next** top-level section banner (or EOF) and prepends the
-additive rules. So the upstream section must stay one contiguous run — a
-plugin section appended after it ends the extraction (v0.5.59 appended the
-time-inject section at the end of `style.css`, and until the rule was
-tightened the rewind mirror silently grew 22 lines of it).
+first banner up to the banner of the plugin that follows it (time-inject),
+prepends the additive rules, and then checks a set of **canaries**
+(`#rw-split`, `.rw3-node`, `.rw3-ribbon`, `.rw3-sheen`, `.fd-text`,
+`.rw3-elbow`, `.rw3-hinge`) inside the extracted block. Two failure modes
+this catches — both real:
+
+* taking the block to the next `/* ── ` banner at all (v0.5.59): the
+  time-inject section was appended after rewind's and 22 of its lines landed
+  in the mirror;
+* or (v0.5.65) stopping at the plugin's **own** Style B sub-banner, which
+  silently dropped every rule after it. A sub-banner that names a step rather
+  than a version (`/* B7: ...`) avoids the ambiguity for any tool that scans
+  for `/* ── `, and the canaries fail the sync loudly if the block is short.
 
 ---
 
@@ -358,8 +445,10 @@ tightened the rewind mirror silently grew 22 lines of it).
 ```sh
 cargo build -p rushi-web                     # server binary (new route)
 cd web-leptos && trunk build                 # WASM bundle
-cargo test -p rushi-web                      # 42 passed (12 rewind projection)
-python3 e2e/rewind_probe.py 8491             # 110 checks, PASS
+cargo test -p rushi-web                      # 65 passed (flow layout + node detail incl.)
+python3 e2e/rewind_probe.py 8491             # 140 checks, PASS (Style A)
+python3 e2e/flow_check.py <port>             # the flow projection over every live session
+python3 e2e/flow_style_b_probe.py <port>     # 60 checks, PASS (Style B, both themes)
 python3 e2e/layout_probe.py  <port>          # shell regression (scrollbar rules)
 ```
 

@@ -31,10 +31,11 @@ CLIENT="web-leptos/src/rewind.rs"
 STYLE="web-leptos/style.css"
 PROBE="e2e/rewind_probe.py"
 FLOW="e2e/flow_check.py"
+FLOWB="e2e/flow_style_b_probe.py"
 CDP="e2e/model_panel_probe.py"
 DOC1="docs/rewind-plugin.md"
 DOC2="docs/rewind-plugin-plan.md"
-for f in "$SERVER" "$CLIENT" "$STYLE" "$PROBE" "$FLOW" "$CDP" "$DOC1" "$DOC2"; do
+for f in "$SERVER" "$CLIENT" "$STYLE" "$PROBE" "$FLOW" "$FLOWB" "$CDP" "$DOC1" "$DOC2"; do
   need "$WEBUI/$f"
 done
 
@@ -52,23 +53,40 @@ cp "$WEBUI/$CDP"    "$HERE/e2e/model_panel_probe.py"
 # see. Like the probes above it stays LOCAL: the whole e2e/ directory is
 # gitignored (account rule — no e2e python in the rushi repositories).
 cp "$WEBUI/$FLOW"   "$HERE/e2e/flow_check.py"
+# Style B's browser probe (sections A-I: the switch, the split, the scene,
+# the panel, the dialog, the long session, the 3D and the paint). Local-only
+# for the same reason as the two above.
+cp "$WEBUI/$FLOWB"  "$HERE/e2e/flow_style_b_probe.py"
 cp "$WEBUI/$DOC1"   "$HERE/docs/rewind-plugin.md"
 cp "$WEBUI/$DOC2"   "$HERE/docs/rewind-plugin-plan.md"
 
 # ── the stylesheet: the appended block + the additive rules ─────────
-# The block is everything from the plugin's section banner to the NEXT
-# section banner (or EOF): the sections are APPENDED to the upstream
-# stylesheet, never inserted, so a section is a contiguous suffix-run and
-# its end is the next top-level banner. (Taking it to EOF instead silently
-# swallows every later section — v0.5.59's time-inject section was appended
-# after rewind's and 22 of its lines landed in the rewind mirror.) A missing
-# banner means the upstream layout changed.
+# The block runs from the plugin's FIRST banner to the banner of the plugin
+# that follows it (time-inject). Two rules of thumb, both learned the hard
+# way and both enforced at the bottom of this section:
+#
+#   * the end is not "the next `/* ── ` banner": the rewind plugin has
+#     sub-banners of its own (Style B, B7) that are part of the section, and
+#     an earlier version of this script stopped at the first of them and
+#     silently dropped the rest of the plugin's CSS;
+#   * the end is not EOF either: taking it to EOF swallows every later
+#     section (v0.5.59's time-inject section was appended after rewind's and
+#     22 of its lines landed in the rewind mirror).
+#
+# So: a named START, a named END (the *next plugin's* banner), and a canary
+# check that the extracted block still contains the plugin's newest
+# selectors — a missing banner means the upstream layout changed and this
+# script must fail loudly instead of shipping a truncated mirror.
 BANNER='/* ── v0.5.56 Rewind plugin'
+END='/* ── v0.5.56 time-inject plugin'
 grep -qF "$BANNER" "$WEBUI/$STYLE" || {
   echo "sync: the rewind section banner is gone from $STYLE" >&2; exit 1; }
-awk -v banner="$BANNER" '
+grep -qF "$END" "$WEBUI/$STYLE" || {
+  echo "sync: the $END banner (the rewind section's end) is gone from $STYLE" >&2
+  exit 1; }
+awk -v banner="$BANNER" -v end="$END" '
   index($0, banner) == 1 { on = 1; print; next }
-  on && /^\/\* ── / { exit }          # the banner that follows ends this one
+  on && index($0, end) == 1 { exit }    # the next plugin banner ends this
   # blank lines are held back: the ones inside the section are flushed by the
   # next real line, the trailing run (the separator before the next banner, or
   # the file end) is dropped, so the block is the section exactly
@@ -76,6 +94,15 @@ awk -v banner="$BANNER" '
   on { if (pend != "") { printf "%s", pend; pend = "" } print }
 ' "$WEBUI/$STYLE" \
   > "$HERE/client/.rewind-block.css.tmp"
+
+# the canaries: the last rules of the section must have made the trip
+for canary in '#rw-split' '.rw3-node' '.rw3-ribbon' '.rw3-sheen' '.fd-text' \
+              '.rw3-elbow' '.rw3-hinge'; do
+  grep -qF -- "$canary" "$HERE/client/.rewind-block.css.tmp" || {
+    echo "sync: the extracted rewind block is missing $canary — the section" >&2
+    echo "      was truncated (banner moved? new sub-banner?)" >&2
+    exit 1; }
+done
 
 {
   cat "$HERE/client/header.css"

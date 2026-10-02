@@ -1,7 +1,7 @@
 # The rushi-webui revision these mirrors were taken from.
 # Written by scripts/sync-from-webui.sh — do not edit.
 repo     = /Users/kiwi/Desktop/deepseek_harness/rushi/rushi-webui
-rev      = 87d63b11f84fd2d9a27c68554232d553e5610ed5
-subject  = v0.5.63: Style B step B1 — the flow layout projection (server)
+rev      = a4d519386f9531e3cca782c88627a51e02a72bd5
+subject  = v0.5.66: docs — Style B as built (B9)
 worktree = clean
-synced   = 2026-10-02T19:10:11Z
+synced   = 2026-10-02T20:07:43Z
