@@ -77,7 +77,7 @@ Follow `install/TOUCHPOINTS.md`. In short:
 
 ```sh
 # server unit tests (the projection against the kernel's own fixtures)
-cd rushi-webui && cargo test -p rushi-web        # 65 passed (flow layout + node detail)
+cd rushi-webui && cargo test -p rushi-web        # 68 passed (flow layout + the ring + node detail)
 
 # frontend
 cd rushi-webui/web-leptos && trunk build          # clean
@@ -85,9 +85,17 @@ cd rushi-webui/web-leptos && trunk build          # clean
 # Style B's flow geometry, against a live server and every session it sees
 python3 e2e/flow_check.py 8480                          # 8 sessions, 0 problems
 # ... and its browser surfaces (the switch, the 1:2 split, the scene, the
-# panel, the dialog, the 117-round session, the 3D, the paint in both themes)
+# panel, the dialog, the 117-round session, the orbital ring, the paint in
+# both themes)
 python3 e2e/flow_style_b_probe.py 8480                  # 66 checks, 0 failed
 #   (A-I plus K: the list style on Webui's 117-round chain, no traps)
+
+# the orbital ring itself (v0.5.68): fixtures + server + the geometry law
+python3 e2e/orbit_probe.py                              # 34 checks, 0 failed
+#   (L1-L12: the law recomputed in Python against the painted rects to 3px,
+#    the arc's queue, the trunk unmoved, click-to-align, hit-testing a turned
+#    bead, the flat -R*cos projection, reduced motion static, the zero- and
+#    one-fork cases, a nested fork, no traps)
 
 # end-to-end (Chromium over CDP; builds its own fixtures and server)
 cd rushi-webui && python3 e2e/rewind_probe.py [port]   # PASS (140 checks)
@@ -138,24 +146,33 @@ generated `client/rewind.css`, checks the 17 touch points, and rewrites
 fails with the file and the missing marker rather than shipping a stale
 mirror — that is the signal to update `install/TOUCHPOINTS.md`.
 
-**Next (planned, not built): the orbital scene.** The branches are to rotate
-in 3D around the session's main axis, scroll-driven, so many forks stop
-competing with a long history for screen rows. Research, design, ten open
-decisions and the step plan are **§12 of `docs/rewind-plugin-plan.md`**.
+**The orbital scene is built (v0.5.68).** The flow scene is a **ring**: the
+trunk stays the horizontal axis and never turns, and every forking branch is a
+**fin** — a plane hinged on that axis where it left, held out at an
+auto-fitted radius, turned around the line by a ring angle the scene's own
+scroll drives. Three fins fit the visible ±60° arc (30° apart) and the rest
+queue at its ends, pushed back in depth and faded, so a session with many
+forks keeps them all visible without giving up a screen row per branch. The
+current branch sits at the front at rest; clicking a fin's bead brings its
+branch round. A lone branch swings ±25° instead of ringing, and
+`prefers-reduced-motion` unfolds the whole ring onto rows *and* holds it
+still. The implementation record (including five refinements the plan
+missed), the measurements and the laws the probe recomputes are **§12.9 of
+`docs/rewind-plugin-plan.md`**, **§3b.6 of `docs/rewind-plugin.md`**, and
+`e2e/orbit_probe.py`.
 
 ## Status & limits
 
 * Implemented and verified (P1–P7, the rewind × compaction work of section 11,
-  **Style B — the flow view, section 10 / §10.8 of
-  `docs/rewind-plugin-plan.md` — and the round-2 work, section 10.9**;
-  upstream `rushi-webui` v0.5.67).
-  **Two styles, one tree:** `flow` — the horizontal `. - . - .` line with the
-  branches
-  forking off it, a 1:2 split with the selected round's full text above and
-  the scene below, an auto-fit scene that pans by drag/wheel and turns the
-  branches in 3D — is **the default**, and the list (the rounds as a flat
-  tree) is one click away in the top bar. Rewind is still only ever
-  triggered from the panel's button → the one confirm dialog.
+  **Style B — the flow view (§10.8 of `docs/rewind-plugin-plan.md`), the
+  round-2 work (§10.9) and the orbital ring (§12.9)**; upstream
+  `rushi-webui` v0.5.68).
+  **Two styles, one tree:** `flow` — the horizontal `. - . - .` trunk with the
+  forking branches orbiting it as fins, a 1:2 split with the selected round's
+  full text above and the scene below, an auto-fit scene that pans by
+  drag/wheel and turns the branches in 3D — is **the default**, and the list
+  (the rounds as a flat tree) is one click away in the top bar. Rewind is
+  still only ever triggered from the panel's button → the one confirm dialog.
   The plugin is a pure view plus a write of an existing event type: **no
   kernel change** for the plugin side. It *depends* on the kernel fix in
   `rushi` f145572 (`docs/rewind-fork-design.md` section 11 — the compaction
@@ -177,7 +194,7 @@ decisions and the step plan are **§12 of `docs/rewind-plugin-plan.md`**.
   number of *forks*, not rounds; all eight live sessions draw in full in the
   list style (117 / 82 / 33 / 30 / 27 / 16 / 11 / 6 nodes, zero traps) and a
   plain run is one flat column instead of a staircase. The flow style's
-  **flat projection** draws the same trees. Both rewind reads also parse past
+  scene draws the same trees (as a ring, since v0.5.68). Both rewind reads also parse past
   serde_json's 128-level limit (`api::parse_deep`); without it those long
   sessions failed the parse and History sat on "loading…" (fixed in upstream
   v0.5.65).

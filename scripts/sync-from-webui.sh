@@ -32,10 +32,12 @@ STYLE="web-leptos/style.css"
 PROBE="e2e/rewind_probe.py"
 FLOW="e2e/flow_check.py"
 FLOWB="e2e/flow_style_b_probe.py"
+ORBIT="e2e/orbit_probe.py"
 CDP="e2e/model_panel_probe.py"
 DOC1="docs/rewind-plugin.md"
 DOC2="docs/rewind-plugin-plan.md"
-for f in "$SERVER" "$CLIENT" "$STYLE" "$PROBE" "$FLOW" "$FLOWB" "$CDP" "$DOC1" "$DOC2"; do
+for f in "$SERVER" "$CLIENT" "$STYLE" "$PROBE" "$FLOW" "$FLOWB" "$ORBIT" "$CDP" \
+         "$DOC1" "$DOC2"; do
   need "$WEBUI/$f"
 done
 
@@ -57,6 +59,11 @@ cp "$WEBUI/$FLOW"   "$HERE/e2e/flow_check.py"
 # the panel, the dialog, the long session, the 3D and the paint). Local-only
 # for the same reason as the two above.
 cp "$WEBUI/$FLOWB"  "$HERE/e2e/flow_style_b_probe.py"
+# The orbital ring's own probe (v0.5.68): it writes its fixtures, starts its
+# own server and recomputes the browser's projection against the painted
+# rects. It imports `flow_style_b_probe` for the shared CDP client, so the
+# two copies above have to come along. Local-only, like all of e2e/.
+cp "$WEBUI/$ORBIT"  "$HERE/e2e/orbit_probe.py"
 cp "$WEBUI/$DOC1"   "$HERE/docs/rewind-plugin.md"
 cp "$WEBUI/$DOC2"   "$HERE/docs/rewind-plugin-plan.md"
 
@@ -96,8 +103,8 @@ awk -v banner="$BANNER" -v end="$END" '
   > "$HERE/client/.rewind-block.css.tmp"
 
 # the canaries: the last rules of the section must have made the trip
-for canary in '#rw-split' '.rw3-node' '.rw3-ribbon' '.rw3-sheen' '.fd-text' \
-              '.rw3-elbow' '.rw3-hinge'; do
+for canary in '#rw-split' '.rw3-node' '.rw-orbit' '.rw-fin' '.rw3-sheen' \
+              '.fd-text' '.rw3-elbow'; do
   grep -qF -- "$canary" "$HERE/client/.rewind-block.css.tmp" || {
     echo "sync: the extracted rewind block is missing $canary — the section" >&2
     echo "      was truncated (banner moved? new sub-banner?)" >&2

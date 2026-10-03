@@ -426,9 +426,9 @@ time-inject banner.
 `client/rewind.css` is generated: `sync-from-webui.sh` takes this plugin's
 first banner up to the banner of the plugin that follows it (time-inject),
 prepends the additive rules, and then checks a set of **canaries**
-(`#rw-split`, `.rw3-node`, `.rw3-ribbon`, `.rw3-sheen`, `.fd-text`,
-`.rw3-elbow`, `.rw3-hinge`) inside the extracted block. Two failure modes
-this catches — both real:
+(`#rw-split`, `.rw3-node`, `.rw-orbit`, `.rw-fin`, `.rw3-sheen`, `.fd-text`,
+`.rw3-elbow`) inside the extracted block. Two failure modes this catches —
+both real:
 
 * taking the block to the next `/* ── ` banner at all (v0.5.59): the
   time-inject section was appended after rewind's and 22 of its lines landed
@@ -438,6 +438,11 @@ this catches — both real:
   than a version (`/* B7: ...`) avoids the ambiguity for any tool that scans
   for `/* ── `, and the canaries fail the sync loudly if the block is short.
 
+The canary list tracks what the section actually ends with: v0.5.68 replaced
+the `.rw3-ribbon` / `.rw3-hinge` pair with the orbital `.rw-orbit` /
+`.rw-fin` (nothing leaves the axis any more, so there is no lane gap for a
+hinge to bridge).
+
 ---
 
 ## 5. Build & verify
@@ -445,11 +450,17 @@ this catches — both real:
 ```sh
 cargo build -p rushi-web                     # server binary (new route)
 cd web-leptos && trunk build                 # WASM bundle
-cargo test -p rushi-web                      # 65 passed (flow layout + node detail incl.)
+cargo test -p rushi-web                      # 68 passed (flow layout + the ring + node detail)
 python3 e2e/rewind_probe.py 8491             # 140 checks, PASS (Style A)
-python3 e2e/flow_check.py <port>             # the flow projection over every live session
+python3 e2e/flow_check.py <port>             # the flow projection + the ring's invariants,
+                                             #   over every live session
 python3 e2e/flow_style_b_probe.py <port>     # 66 checks, PASS (Style B, both themes,
-                                             #   + K: the list style on a 117-round chain)
+                                             #   + H: the orbit, + K: the list style on
+                                             #   a 117-round chain)
+python3 e2e/orbit_probe.py                   # 34 checks, PASS (the ring's own fixtures:
+                                             #   the geometry law, the arc's queue, the
+                                             #   flat projection, reduced motion, and the
+                                             #   zero-/one-fork cases)
 python3 e2e/layout_probe.py  <port>          # shell regression (scrollbar rules)
 ```
 

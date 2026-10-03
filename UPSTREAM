@@ -1,7 +1,7 @@
 # The rushi-webui revision these mirrors were taken from.
 # Written by scripts/sync-from-webui.sh — do not edit.
 repo     = /Users/kiwi/Desktop/deepseek_harness/rushi/rushi-webui
-rev      = c9cefee7b6ffb963b8460ee64065e2d4c3ad8053
-subject  = comments: the History style default, where the code still said D2
+rev      = 754108590bf162befd5a7f10675e358826a7e3b0
+subject  = v0.5.68: the orbital flow view (plan §12, D-orb-1..10)
 worktree = clean
-synced   = 2026-10-03T15:45:18Z
+synced   = 2026-10-03T17:42:30Z
