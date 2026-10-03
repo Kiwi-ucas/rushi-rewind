@@ -130,7 +130,8 @@ check() { # file, marker, label
     exit 1; }
 }
 check bin/rushi-web/src/main.rs        'mod rewind;'                                   "main.rs: mod rewind"
-check bin/rushi-web/src/main.rs        'rewind::build(&id, &events)'                   "main.rs: the projection handler"
+check bin/rushi-web/src/main.rs        'rewind::build_live(&id, &events, live)'         "main.rs: the projection handler"
+check bin/rushi-web/src/main.rs        'let live = st.loops.is_running(&id).await;'     "main.rs: the liveness read"
 check bin/rushi-web/src/main.rs        'get(get_rewind_tree).post(post_rewind)'        "main.rs: the route"
 check web-leptos/src/model.rs          'pub struct RewindTree {'                       "model.rs: the types"
 check web-leptos/src/model.rs          'pub rewind_gen: RwSignal<u64>,'                 "model.rs: the state slice"

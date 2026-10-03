@@ -77,7 +77,8 @@ Follow `install/TOUCHPOINTS.md`. In short:
 
 ```sh
 # server unit tests (the projection against the kernel's own fixtures)
-cd rushi-webui && cargo test -p rushi-web        # 68 passed (flow layout + the ring + node detail)
+cd rushi-webui && cargo test -p rushi-web        # 71 passed (flow layout + the ring + node
+                                                 # detail + the two v0.5.69 live rules)
 
 # frontend
 cd rushi-webui/web-leptos && trunk build          # clean
@@ -161,12 +162,34 @@ missed), the measurements and the laws the probe recomputes are **§12.9 of
 `docs/rewind-plugin-plan.md`**, **§3b.6 of `docs/rewind-plugin.md`**, and
 `e2e/orbit_probe.py`.
 
+**Two live defects fixed (v0.5.69).** The first report from real use found
+both at once. (1) The history tree went *flat on a running session*: the
+server's pop guard is `bin/assemble`'s own, but the kernel only ever runs it
+*between* turns while the plugin projects on every request, so a tool call
+whose result was not written yet read as a stranded pair and every rewind
+marker of the log was dropped. A session with four markers that the user knew
+were there projected `0 fins` while the agent worked and `4 fins` a moment
+later. Fix: `build_live`/`rewind_verdict_live` treat an id unpaired *anywhere
+in the log* as **pending** while `is_running(session)` — a narrow rule (a pair
+the mask splits still strands, a dead loop keeps the kernel's exact rule).
+(2) The ring *never turned on the sessions that have branches*: `--phase`
+reads the scene's pan, and `#rw-flow-track` auto-fits, so a track of 17..45
+columns fits its panel **exactly** — `scrollLeft` pinned at 0, wheel and drag
+both dead (measured `0/1200/1200`, `--rw-scroll` `"0"`, four fins unmoved
+after six real wheel events). Fix: `--rw-scroll` is `scrollLeft + turn`, the
+turn being the part of a gesture the track could not take; a scene that can
+pan is unchanged, a scene that cannot now turns the ring in place, and the
+turn resets at every layout point so rest still means alignment.
+**§12.10 of `docs/rewind-plugin-plan.md`, §3b.6 of `docs/rewind-plugin.md`.**
+The two browser probes for these are not written yet (deferred — the user is
+reviewing the fix by hand); the unit tests and both builds are green.
+
 ## Status & limits
 
 * Implemented and verified (P1–P7, the rewind × compaction work of section 11,
   **Style B — the flow view (§10.8 of `docs/rewind-plugin-plan.md`), the
-  round-2 work (§10.9) and the orbital ring (§12.9)**; upstream
-  `rushi-webui` v0.5.68).
+  round-2 work (§10.9), the orbital ring (§12.9) and the two live defects of
+  §12.10**; upstream `rushi-webui` v0.5.69).
   **Two styles, one tree:** `flow` — the horizontal `. - . - .` trunk with the
   forking branches orbiting it as fins, a 1:2 split with the selected round's
   full text above and the scene below, an auto-fit scene that pans by
