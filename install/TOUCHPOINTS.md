@@ -434,8 +434,9 @@ time-inject banner.
 `client/rewind.css` is generated: `sync-from-webui.sh` takes this plugin's
 first banner up to the banner of the plugin that follows it (time-inject),
 prepends the additive rules, and then checks a set of **canaries**
-(`#rw-split`, `.rw3-node`, `.rw-orbit`, `.rw-fin`, `.rw3-sheen`, `.fd-text`,
-`.rw3-elbow`) inside the extracted block. Two failure modes this catches —
+(`#rw-split`, `.rw3-node`, `.rw-orbit`, `.rw-branch`, `.rw-br-line`,
+`.rw3-sheen`, `.fd-text`) inside the extracted block — plus a *gone* set
+(`.rw-fin`, `.rw3-elbow`, `.rw3-hinge`) that must **not** appear as rules. Two failure modes this catches —
 both real:
 
 * taking the block to the next `/* ── ` banner at all (v0.5.59): the
@@ -446,10 +447,13 @@ both real:
   than a version (`/* B7: ...`) avoids the ambiguity for any tool that scans
   for `/* ── `, and the canaries fail the sync loudly if the block is short.
 
-The canary list tracks what the section actually ends with: v0.5.68 replaced
+The canary list tracks what the section actually ends with. v0.5.68 replaced
 the `.rw3-ribbon` / `.rw3-hinge` pair with the orbital `.rw-orbit` /
-`.rw-fin` (nothing leaves the axis any more, so there is no lane gap for a
-hinge to bridge).
+`.rw-fin`; **v0.5.70 (the cone)** deletes `.rw-fin` and `.rw3-elbow` too —
+a branch is one straight `.rw-br-line` out of its parent's bead, so there is
+neither a ribbon nor an elbow left — and those names move to the *gone* set,
+which fails the sync if a stale copy reintroduces them (a comment naming them
+is fine; a rule is not).
 
 ---
 

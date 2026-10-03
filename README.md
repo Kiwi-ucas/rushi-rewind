@@ -91,7 +91,7 @@ python3 e2e/flow_check.py 8480                          # 8 sessions, 0 problems
 python3 e2e/flow_style_b_probe.py 8480                  # 66 checks, 0 failed
 #   (A-I plus K: the list style on Webui's 117-round chain, no traps)
 
-# the orbital ring itself (v0.5.68): fixtures + server + the geometry law
+# the cone itself (v0.5.70): fixtures + server + the ray's geometry law
 python3 e2e/orbit_probe.py                              # 34 checks, 0 failed
 #   (L1-L12: the law recomputed in Python against the painted rects to 3px,
 #    the arc's queue, the trunk unmoved, click-to-align, hit-testing a turned
@@ -141,17 +141,42 @@ scripts/sync-from-webui.sh [path-to-rushi-webui]     # default: ../rushi-webui
 ```
 
 The script overwrites `server/`, `client/rewind.rs`, `docs/`, `e2e/` and the
-generated `client/rewind.css`, checks the 17 touch points, and rewrites
+generated `client/rewind.css`, checks the 18 touch points, and rewrites
 `UPSTREAM`. Hand-maintained files (this README, `install/`, the two
 `client/*.css` inputs) are never touched. If a touch point is gone, the script
 fails with the file and the missing marker rather than shipping a stale
 mirror — that is the signal to update `install/TOUCHPOINTS.md`.
 
-**The orbital scene is built (v0.5.68).** The flow scene is a **ring**: the
-trunk stays the horizontal axis and never turns, and every forking branch is a
-**fin** — a plane hinged on that axis where it left, held out at an
+**The cone (v0.5.70).** A branch is no longer a ribbon parallel to the trunk:
+it is a **straight ray** leaving its **parent's bead**. Bead *i* of a branch
+sits at radius *i·q* (one *q* per round, `q = (axis − margin − band/2) /
+longest branch`) while the x step stays one column per round, so a branch
+leans out of the history line instead of shadowing it. Each branch is one
+zero-size container on its parent's bead holding **one straight bar**
+(`hypot()`/`atan2()` over the branch's own span and slope) and the beads that
+branch owns; the per-branch ribbon (`.rw-fin`) and the per-edge elbow bars
+(`.rw3-elbow`) are **deleted** — the user's rule was "every connector must be
+a straight line with no bends" and "no background ribbon per branch". A fork
+*off a branch* renders its container **inside** its parent's, so its line
+starts on the parent's bead and fans ±30° relative to its parent (D-cone-6/7).
+The park/queue treatment, the phase, the alignment and `.rw3-sheen` are
+unchanged; the trunk is bit-identical. Two engine facts are load-bearing, both
+measured: `hypot()`/`atan2()` are unusable with container units inside them
+(the cell and the slope cross into CSS as px), and `opacity < 1` flattens 3D
+children — so the park fade is a *value* on the leaves, and a nested bead
+counter-rotates and counter-scales by its plane's **absolute** angle and its
+chain's **product** (written by the render, because CSS cannot add an
+ancestor's variable to its own without a cycle). Full record, the three
+engine traps, the one honest limitation (a *parked* branch's plane travels
+with its push) and the probe table: **§13.6 of
+`docs/rewind-plugin-plan.md`**, **§3b.6 of `docs/rewind-plugin.md`**,
+`e2e/orbit_probe.py` (40 checks).
+
+**Before that: the orbital ring (v0.5.68).** The scene was a **ring**: the
+trunk stayed the horizontal axis and never turned, and every forking branch
+was a **fin** — a plane hinged on that axis where it left, held out at an
 auto-fitted radius, turned around the line by a ring angle the scene's own
-scroll drives. Three fins fit the visible ±60° arc (30° apart) and the rest
+scroll drove. Three fins fit the visible ±60° arc (30° apart) and the rest
 queue at its ends, pushed back in depth and faded, so a session with many
 forks keeps them all visible without giving up a screen row per branch. The
 current branch sits at the front at rest; clicking a fin's bead brings its
@@ -181,20 +206,22 @@ turn being the part of a gesture the track could not take; a scene that can
 pan is unchanged, a scene that cannot now turns the ring in place, and the
 turn resets at every layout point so rest still means alignment.
 **§12.10 of `docs/rewind-plugin-plan.md`, §3b.6 of `docs/rewind-plugin.md`.**
-The two browser probes for these are not written yet (deferred — the user is
-reviewing the fix by hand); the unit tests and both builds are green.
+The two browser checks that would pin these (a cone that turns on a scene too
+narrow to pan, and a `loop.pid` toggle for the pending rule) are still not
+written — deferred, because the user was reviewing that fix by hand — but the
+four probes have since been re-run green for v0.5.70.
 
 ## Status & limits
 
 * Implemented and verified (P1–P7, the rewind × compaction work of section 11,
   **Style B — the flow view (§10.8 of `docs/rewind-plugin-plan.md`), the
-  round-2 work (§10.9), the orbital ring (§12.9) and the two live defects of
-  §12.10**; upstream `rushi-webui` v0.5.69).
-  **Two styles, one tree:** `flow` — the horizontal `. - . - .` trunk with the
-  forking branches orbiting it as fins, a 1:2 split with the selected round's
-  full text above and the scene below, an auto-fit scene that pans by
-  drag/wheel and turns the branches in 3D — is **the default**, and the list
-  (the rounds as a flat tree) is one click away in the top bar. Rewind is
+  round-2 work (§10.9), the orbital ring (§12.9), the two live defects of
+  §12.10 and the cone of §13**; upstream `rushi-webui` v0.5.70).
+  **Two styles, one tree:** `flow` — the horizontal `. - . - .` trunk with each
+  forking branch leaning out of it as a straight ray, a 1:2 split with the
+  selected round's full text above and the scene below, an auto-fit scene that
+  pans by drag/wheel and turns the branches in 3D — is **the default**, and the
+  list (the rounds as a flat tree) is one click away in the top bar. Rewind is
   still only ever triggered from the panel's button → the one confirm dialog.
   The plugin is a pure view plus a write of an existing event type: **no
   kernel change** for the plugin side. It *depends* on the kernel fix in
@@ -217,7 +244,7 @@ reviewing the fix by hand); the unit tests and both builds are green.
   number of *forks*, not rounds; all eight live sessions draw in full in the
   list style (117 / 82 / 33 / 30 / 27 / 16 / 11 / 6 nodes, zero traps) and a
   plain run is one flat column instead of a staircase. The flow style's
-  scene draws the same trees (as a ring, since v0.5.68). Both rewind reads also parse past
+  scene draws the same trees (as a cone of rays since v0.5.70). Both rewind reads also parse past
   serde_json's 128-level limit (`api::parse_deep`); without it those long
   sessions failed the parse and History sat on "loading…" (fixed in upstream
   v0.5.65).

@@ -102,13 +102,28 @@ awk -v banner="$BANNER" -v end="$END" '
 ' "$WEBUI/$STYLE" \
   > "$HERE/client/.rewind-block.css.tmp"
 
-# the canaries: the last rules of the section must have made the trip
-for canary in '#rw-split' '.rw3-node' '.rw-orbit' '.rw-fin' '.rw3-sheen' \
-              '.fd-text' '.rw3-elbow'; do
+# the canaries: the newest rules of the section must have made the trip.
+# v0.5.70 (the cone): `.rw-fin` and `.rw3-elbow` are *deleted* — a branch is
+# one straight bar now — so they move to the gone-canaries below and the
+# cone's own selectors take their place.
+for canary in '#rw-split' '.rw3-node' '.rw-orbit' '.rw-branch' '.rw-br-line' \
+              '.rw3-sheen' '.fd-text'; do
   grep -qF -- "$canary" "$HERE/client/.rewind-block.css.tmp" || {
     echo "sync: the extracted rewind block is missing $canary — the section" >&2
     echo "      was truncated (banner moved? new sub-banner?)" >&2
     exit 1; }
+done
+
+# ... and the deleted ones must be gone: a resurrected ribbon or elbow bar
+# means the extraction picked up a stale copy or the section was duplicated
+# (a *rule*, not a mention: the v0.5.70 comments say the names on purpose)
+for gone in 'rw-fin' 'rw3-elbow' 'rw3-hinge'; do
+  if grep -qE "^[[:space:]]*\.$gone([[:space:],{:.]|$)" \
+       "$HERE/client/.rewind-block.css.tmp"; then
+    echo "sync: .$gone is back in the extracted rewind block — v0.5.70" >&2
+    echo "      deleted it (plan §13, D-cone-3)" >&2
+    exit 1
+  fi
 done
 
 {
