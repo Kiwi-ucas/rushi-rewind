@@ -86,7 +86,8 @@ cd rushi-webui/web-leptos && trunk build          # clean
 python3 e2e/flow_check.py 8480                          # 8 sessions, 0 problems
 # ... and its browser surfaces (the switch, the 1:2 split, the scene, the
 # panel, the dialog, the 117-round session, the 3D, the paint in both themes)
-python3 e2e/flow_style_b_probe.py 8480                  # 60 checks, 0 failed
+python3 e2e/flow_style_b_probe.py 8480                  # 66 checks, 0 failed
+#   (A-I plus K: the list style on Webui's 117-round chain, no traps)
 
 # end-to-end (Chromium over CDP; builds its own fixtures and server)
 cd rushi-webui && python3 e2e/rewind_probe.py [port]   # PASS (140 checks)
@@ -137,16 +138,23 @@ generated `client/rewind.css`, checks the 17 touch points, and rewrites
 fails with the file and the missing marker rather than shipping a stale
 mirror — that is the signal to update `install/TOUCHPOINTS.md`.
 
+**Next (planned, not built): the orbital scene.** The branches are to rotate
+in 3D around the session's main axis, scroll-driven, so many forks stop
+competing with a long history for screen rows. Research, design, ten open
+decisions and the step plan are **§12 of `docs/rewind-plugin-plan.md`**.
+
 ## Status & limits
 
 * Implemented and verified (P1–P7, the rewind × compaction work of section 11,
-  **and Style B — the flow view, section 10 / §10.8 of
-  `docs/rewind-plugin-plan.md`**; upstream `rushi-webui` v0.5.66).
-  **Two styles, one tree:** the History view's list (the recursive rounds) is
-  the default, and `flow` — the horizontal `. - . - .` line with the branches
+  **Style B — the flow view, section 10 / §10.8 of
+  `docs/rewind-plugin-plan.md` — and the round-2 work, section 10.9**;
+  upstream `rushi-webui` v0.5.67).
+  **Two styles, one tree:** `flow` — the horizontal `. - . - .` line with the
+  branches
   forking off it, a 1:2 split with the selected round's full text above and
   the scene below, an auto-fit scene that pans by drag/wheel and turns the
-  branches in 3D — is one click away in the top bar. Rewind is still only ever
+  branches in 3D — is **the default**, and the list (the rounds as a flat
+  tree) is one click away in the top bar. Rewind is still only ever
   triggered from the panel's button → the one confirm dialog.
   The plugin is a pure view plus a write of an existing event type: **no
   kernel change** for the plugin side. It *depends* on the kernel fix in
@@ -160,14 +168,19 @@ mirror — that is the signal to update `install/TOUCHPOINTS.md`.
   (`Raw` / `Framed{vN, from, to}` / `Unresumable`); and a rewind that did not
   take effect is reported in the plugin area (`ignored` / `tail_ignored`). A
   dropped marker no longer moves the tree's cursor.
-* **Long sessions: use the flow style.** The list style renders one DOM
-  level per round and exhausts the wasm stack past roughly 32–80 rounds
-  (`Webui` 117, `alpha` 82 on this host: the app survives, the tree does not
-  paint, the console says `RuntimeError: memory access out of bounds`). The
-  flow style's **flat projection** draws every session measured — 117 rounds
-  included. Both rewind reads also parse past serde_json's 128-level limit
-  (`api::parse_deep`); without it those long sessions failed the parse and
-  History sat on "loading…" (fixed in upstream v0.5.65).
+* **Long sessions render in both styles now (v0.5.67).** The list style used
+  to nest one DOM level per round and exhausted the wasm stack past roughly
+  32–80 rounds (`Webui` 117 and `alpha` 82 drew **six** nodes each, 5 and 8
+  traps, `RuntimeError: memory access out of bounds` — the app survived, the
+  tree did not paint, and History looked like a stale copy). A node with a
+  single child now continues as a **sibling**, so recursion depth is the
+  number of *forks*, not rounds; all eight live sessions draw in full in the
+  list style (117 / 82 / 33 / 30 / 27 / 16 / 11 / 6 nodes, zero traps) and a
+  plain run is one flat column instead of a staircase. The flow style's
+  **flat projection** draws the same trees. Both rewind reads also parse past
+  serde_json's 128-level limit (`api::parse_deep`); without it those long
+  sessions failed the parse and History sat on "loading…" (fixed in upstream
+  v0.5.65).
 * A flow scene that **fits** its panel has nothing to pan, so its branches
   keep the static turn their position under the light implies; long sessions
   pan and turn as designed (plan §10.8).

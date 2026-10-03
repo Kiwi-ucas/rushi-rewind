@@ -1,7 +1,7 @@
 # The rushi-webui revision these mirrors were taken from.
 # Written by scripts/sync-from-webui.sh — do not edit.
 repo     = /Users/kiwi/Desktop/deepseek_harness/rushi/rushi-webui
-rev      = a4d519386f9531e3cca782c88627a51e02a72bd5
-subject  = v0.5.66: docs — Style B as built (B9)
+rev      = 5c277e242d83a8afadc871703c9b9f5668b3e633
+subject  = docs: round 2 — the flat-list fix as built, and the orbital view plan
 worktree = clean
-synced   = 2026-10-02T20:07:43Z
+synced   = 2026-10-03T15:38:26Z

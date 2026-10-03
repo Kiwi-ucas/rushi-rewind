@@ -448,13 +448,19 @@ cd web-leptos && trunk build                 # WASM bundle
 cargo test -p rushi-web                      # 65 passed (flow layout + node detail incl.)
 python3 e2e/rewind_probe.py 8491             # 140 checks, PASS (Style A)
 python3 e2e/flow_check.py <port>             # the flow projection over every live session
-python3 e2e/flow_style_b_probe.py <port>     # 60 checks, PASS (Style B, both themes)
+python3 e2e/flow_style_b_probe.py <port>     # 66 checks, PASS (Style B, both themes,
+                                             #   + K: the list style on a 117-round chain)
 python3 e2e/layout_probe.py  <port>          # shell regression (scrollbar rules)
 ```
 
 (`e2e/` is untracked by design — the probes are local tools, not part of
 what this repository ships; `rushi-webui/e2e/` is gitignored too, and
 `scripts/sync-from-webui.sh` refreshes the local copies.)
+
+The list style's 117-round case is checked by `flow_style_b_probe.py`'s
+section K (one DOM level per **fork** since v0.5.67; a chain is flat, no wasm
+trap). `e2e/rewind_probe.py` pins `rushi-rw-view=tree` for itself, because the
+History view's default style is `flow` since v0.5.67.
 
 A restart of the running `rushi-web` is required for the new route; the WASM
 bundle is re-read from `dist/` on the next page load in debug builds.
