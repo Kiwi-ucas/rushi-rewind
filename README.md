@@ -88,16 +88,17 @@ python3 e2e/flow_check.py 8480                          # 8 sessions, 0 problems
 # ... and its browser surfaces (the switch, the 1:2 split, the scene, the
 # panel, the dialog, the 117-round session, the orbital ring, the paint in
 # both themes)
-python3 e2e/flow_style_b_probe.py 8480                  # 66 checks, 0 failed
+python3 e2e/flow_style_b_probe.py 8480                  # 68 checks, 0 failed
 #   (A-I plus K: the list style on Webui's 117-round chain, no traps)
 
 # the cone itself (v0.5.70, its full circle in v0.5.71): fixtures + server +
 # the ray's geometry law
-python3 e2e/orbit_probe.py 8480                         # 44 checks, 0 failed
+python3 e2e/orbit_probe.py 8480                         # 48 checks, 0 failed
 #   (L1-L12: the law recomputed in Python against the painted rects to 3px,
 #    the auto-fit to the panel's smaller half, nothing parked (no z push), a
 #    whole 360 degrees spent on a real wheel returning every bead, the depth
-#    dim `1 - 0.35 sin a`, the trunk unmoved, click-to-align, hit-testing a
+#    dim `1 - 0.35 sin a`, the even fan (every fan is `360/k` apart, none
+#    edge-on, the front's nudge rule), the trunk unmoved, click-to-align, hit-testing a
 #    turned bead, the flat cos projection, reduced motion static, the zero-
 #    and one-fork cases, a nested fork, no traps)
 
@@ -186,7 +187,30 @@ cycle) — and CSS `mod()` works (negative arguments and custom-property chains
 included), which is what keeps the whole wrap in `calc()`. Full record, the
 three engine traps, the three defects live use found and the probe table:
 **§13.6–§13.8 of `docs/rewind-plugin-plan.md`**, **§3b.6 of
-`docs/rewind-plugin.md`**, `e2e/orbit_probe.py` (44 checks).
+`docs/rewind-plugin.md`**, `e2e/orbit_probe.py` (48 checks).
+
+**v0.5.72 (D-fan-1..6, the user's own ask)** spreads each *fan* over the full
+circle: the branches of one parent are `360/k` apart (three of them 120° each)
+instead of the fixed 30° step that wedged them into 30/60/90 — measured on the
+live session, branch beads landing on trunk beads went **7 → 1** and overlapping
+bead pairs **8 → 2**. An angle now belongs to a **fan**: the server's `fin`
+numbers every branch of the session (the live root fan holds `{0, 2, 3}`), so
+each container carries its rank inside its own fan and the *render* works the
+angle out and writes it in degrees (`--th`, plus `--rdeg` for the top ancestor,
+which is what the beads' counter-rotation needs). `--step`/`--align`/`--sroot`
+left the stylesheet; the selectors did not change, so this mirror's canaries
+still hold. Two geometry facts came with it: `a = ±90°` is edge-on (the screen
+offset is `−q·cos a`, so a branch there loses all of its projected length and
+its beads land on the trunk row — measured 1.7px from a trunk bead), which a
+0-based fan hits exactly when `k % 4 == 0`, so those fans are nudged half a
+step (the aligned branch then sits at ±45°, not straight up); and a nested fan
+is centred on 180° — opposite its parent's own ray, never along it — with its
+spread capped at 120° and a quarter-step nudge in the few sizes where 180 ± 90
+would reappear. A lone child sits straight below its parent, a lone branch
+still points straight up, and the auto-fit is untouched (a branch's screen
+offset never exceeds `q`, so the panel's smaller half still holds the whole
+circle). The server was not touched: `orbit.step_deg` and `orbit.arc_deg` are
+both unread now.
 
 **Before that: the orbital ring (v0.5.68).** The scene was a **ring**: the
 trunk stayed the horizontal axis and never turned, and every forking branch
@@ -233,8 +257,8 @@ four probes have since been re-run green for v0.5.70 and v0.5.71.
 * Implemented and verified (P1–P7, the rewind × compaction work of section 11,
   **Style B — the flow view (§10.8 of `docs/rewind-plugin-plan.md`), the
   round-2 work (§10.9), the orbital ring (§12.9), the two live defects of
-  §12.10, the cone of §13 and its full circle (§13.7/§13.8)**; upstream
-  `rushi-webui` v0.5.71).
+  §12.10, the cone of §13, its full circle (§13.7/§13.8) and the even fan
+  (§13.9/§13.10)**; upstream `rushi-webui` v0.5.72).
   **Two styles, one tree:** `flow` — the horizontal `. - . - .` trunk with each
   forking branch leaning out of it as a straight ray, a 1:2 split with the
   selected round's full text above and the scene below, an auto-fit scene that

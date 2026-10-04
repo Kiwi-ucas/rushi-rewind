@@ -457,6 +457,14 @@ is fine; a rule is not). **v0.5.71 (the full circle)** adds `.rw-orbit.solo`:
 the bounded arc, its park and the one-branch swing are gone (D-cone-8/11), so a
 resurrected `.rw-orbit.solo` rule fails the sync too.
 
+**v0.5.72 (the even fan)** changed no selector: the step became `360/k` of each
+*fan*, and since the stylesheet cannot know which fan a container belongs to,
+the *render* writes each branch's angles in degrees (`--th`, and `--rdeg` for
+the top ancestor) instead of the stylesheet deriving them from `--slot` and one
+global `--step`. `--step`/`--align`/`--sroot` therefore vanished from the
+section while `--slot` stayed (as the rank inside the fan), so the canary and
+gone lists are unchanged.
+
 ---
 
 ## 5. Build & verify
@@ -468,11 +476,12 @@ cargo test -p rushi-web                      # 71 passed (flow layout + the cone
 python3 e2e/rewind_probe.py 8491             # 140 checks, PASS (Style A)
 python3 e2e/flow_check.py <port>             # the flow projection + the ring's invariants,
                                              #   over every live session
-python3 e2e/flow_style_b_probe.py <port>     # 66 checks, PASS (Style B, both themes,
+python3 e2e/flow_style_b_probe.py <port>     # 68 checks, PASS (Style B, both themes,
                                              #   + H: the orbit, + K: the list style on
                                              #   a 117-round chain)
-python3 e2e/orbit_probe.py <port>            # 44 checks, PASS (the cone's own fixtures:
-                                             #   the geometry law, the full circle (a whole
+python3 e2e/orbit_probe.py <port>            # 48 checks, PASS (the cone's own fixtures:
+                                             #   the geometry law, the even fan (360/k,
+                                             #   never edge-on), the full circle (a whole
                                              #   turn spent on the wheel), the depth dim,
                                              #   the flat projection, reduced motion, and
                                              #   the zero-/one-fork cases)

@@ -1771,3 +1771,230 @@ Three probe lessons worth keeping:
    a bead *behind* another is legitimately covered. The hit test now accepts a
    cover only when the two dots actually overlap (≤12px apart); anything else
    covering a bead is still a failure.
+
+## 13.9 Even distribution of a fan (proposed 2026-10-04, v0.5.72)
+
+**The ask (user, verbatim):** "分支分布按 360 度平均分布，例如有三条分支，那么分支
+之间的角度为 360/3 = 120 度，平均分布会让分支不拥挤，方便用户点击" — distribute the
+branches of one fan evenly over the full circle, so the angles are `360/k`
+instead of the fixed 30° step.
+
+### Why: the fixed 30° step is crowded (measured)
+
+The step is a **constant** (`ORBIT_STEP_DEG = 30`, the server's `orbit.step_deg`)
+while the fan size is not, so a fan of three branches occupies only 60° of the
+circle and lands in the upper half. Measured on the live `rewind` session
+(4 fins: a **root fan of 3** + one nested fan of 1 — so the user's example of
+"three branches" is exactly this fixture; every other live session has 0 or 1
+fin), by re-writing `--step` on the painted scene and reading the beads'
+`getBoundingClientRect()`:
+
+| layout | angles | projected rays | bead pairs < 13px apart | branch beads covering a **trunk** bead |
+| --- | --- | --- | --- | --- |
+| now: step 30, server slots (0, 2, 3) | 0°, 60°, 90° | 272 / 0 / 208 px | **8** | **7** |
+| step 30, slots re-based per fan (0, 1, 2) | 0°, 30°, 60° | 272 / 0 / 221 px | 3 | 1 |
+| **even 360/3 = 120°, slots re-based** | 0°, 120°, −120° | 272 / 0 / 258 px | **2** | **1** |
+| (hypothetical N=4) step 90 | 0°, 90°, 180° | 272 / 0 / 272 px | 1 | 1 — but see the ±90° note |
+| (hypothetical N=5) step 72 | 0°, 72°, 144° | 272 / 0 / 243 px | 1 | 1 |
+
+Two things this measurement settles:
+
+1. **The angle a fan gets must be re-based per fan.** `fin` is a *global*
+   index over every branch of the session, so the root fan of the live fixture
+   holds slots `{0, 2, 3}` (slot 1 belongs to the nested fan). Driving
+   `360/3 = 120°` off those numbers put **two branches on exactly the same
+   angle — 0.0px apart, 7 overlapping bead pairs** — because slot 3 wraps to
+   0. Each fan therefore needs its **own** ranks `0..k-1`, with the global
+   `fin` kept only as an identity (`data-fin`).
+2. Even splitting removes the crowding that the user reported: branch beads
+   sitting on top of trunk beads go **7 → 1**, and overlapping bead pairs
+   **8 → 2**.
+
+### The one geometric caveat: ±90° is edge-on
+
+A branch's screen offset is `−q·cos a` (recall `rotateX` maps its ray to
+`(0, −h·cos a, −h·sin a)`), so at `a = ±90°` the ray loses **all** of its
+projected length: it points at, or away from, the camera. Measured at the
+N=4 spacing: the edge-on branch's bead landed **1.7px from a trunk bead** — it
+is drawn as a full-size dot sitting on the trunk row, indistinguishable from a
+trunk node. Note this is *not* "invisible": the bead is still there, still
+counter-rotated, still clickable (and a click aligns the fan, which swings it
+to the front) — but it reads as a trunk bead.
+
+Two facts make this the only singular case:
+
+* the split is even and 0-based, so a branch lands on ±90° exactly when
+  `k ≡ 0 (mod 4)` (`k = 4, 8, ...`); for `k = 3, 5, 6, 7` the closest branch is
+  30°, 18°, 0°, ~13° away from it;
+* two branches at `±a` share a screen **height** (`cos` is even) and differ only
+  in depth — the mirror pair D-cone-10 already dims one of them
+  (`1 − 0.35 sin a` ⇒ 0.65 far / 1.0 near) and the perspective separates them
+  slightly. This is inherent to a full circle, not to this change.
+
+### The plan
+
+**D-fan-1 (the step).** `step(fan) = 360° / k` where `k` is the number of
+branches **in that fan**: the root fan counts the trunk-parented branches, a
+nested fan counts the children of that branch. Nothing server-side: the client
+already builds the forest (`roots` + `kids`), so the whole change is
+client + stylesheet.
+
+**D-fan-2 (per-fan ranks).** A container's `--slot` becomes its **rank inside
+its own fan** (`0..k-1`, in the server's `fin` order so it stays stable across
+reloads); `data-fin` keeps the global index. The root fan's `--align` becomes a
+*rank* too (it already is the topmost ancestor's fin — same value only while
+the fins are dense).
+
+**D-fan-3 (the aligned branch stays at the front).** For the root fan the
+`--align` rank is still subtracted *before* the step, so at rest the selected
+(or current) branch points straight up (D-orb-7 kept: "the alignment rule
+always wins at rest"). Sub-decision on the `k ≡ 0 (mod 4)` singular:
+* **(A) keep it** — a branch exactly at ±90° when `k` is a multiple of 4; it is
+  always one click (or one scroll) away from the front. Recommended while no
+  live session has 4+ root branches.
+* **(B) half-step offset** for **even** `k` (`+180/k`): no branch is ever
+  edge-on, the fan is symmetric about the vertical, but no branch points
+  exactly up (`k=4`: ±45°/±135°; `k=2`: ±90° — still singular, so B would need
+  the cap below).
+* **(C) hybrid** — offset only when a branch would land within ±5° of ±90°
+  (`k ≡ 0 (mod 4)`): exact for `k = 1, 3, 5, 6, 7`, safe for `k = 4, 8`.
+  **Recommendation: (C)**, i.e. (A) everywhere it can be exact and (B) only
+  where the circle would put a branch on the camera's axis.
+
+**D-fan-4 (nested fans).** The same even split, but the fan is **centred on
+180°** (opposite the parent's own ray) and its spacing is **capped at 120°**:
+`spacing = min(360/k, 120)`, angles `180 + (j − (k−1)/2)·spacing`. This keeps
+D-cone-7's measured rule for the cases that matter — a lone child sits at
+**180°** (mirrored below its parent, never on the parent's own continuation
+ray, which is what made a +30° child hide 4.5px behind the parent's next bead)
+— and sends two children to 120°/240° instead of the singular 90°/270°.
+
+**D-fan-5 (the rotation rate).** Unchanged (`ORBIT_DEG_PER_WIDTH = 240`, i.e.
+`--deg-per-width`): a bigger step only means fewer branch-steps per panel
+width (`240k/360`), and the rate is a feel parameter, not a layout law. (If the
+user wants "one panel width = one whole turn", that is a **one-number** change;
+not proposed, since it would make a 3-fan feel three times slower.)
+
+**D-fan-6 (no fit change).** The auto-fit already spends the *smaller* half of
+the panel (D-cone-9, axis at `0.5·h`) and a branch's screen offset is
+`|cos a| ≤ 1`, so a fan spread over the full circle still fits — the worst case
+(0°/180°, straight up and straight down) is exactly what v0.5.71 already sized.
+
+### Implementation (client + stylesheet, no server change)
+
+The step can no longer be one number on the track, so the render writes the
+**degrees** it already computes instead of the raw slots:
+
+* `rewind.rs` (`Cone`): carry a per-fan `(step, offset)` and the fan's rank
+  instead of the scene-wide `self.step`; write `--th` (this container's angle
+  inside its parent's plane, in degrees: the root fan `(rank − align)·step`,
+  a nested fan `(j − (k−1)/2)·spacing + 180`), `--rdeg` (the **topmost
+  ancestor's** aligned angle, the same for the whole sub-tree, which is what
+  `--root_a` needs — today `(sroot − align)·step` is re-derived in CSS, which
+  cannot work once the step differs per container), `--sum` (the static nesting
+  chain, now a float) and `--kup`/`--kown` (floats, from `flat_k` at the same
+  degrees). `--slot` stays (rank, for debugging and for the probes), `data-fin`
+  stays (identity).
+* `style.css`: `--root_a: calc(var(--rdeg, 0) + var(--phase, 0))`,
+  `--theta: var(--th, 0)`; the nested rule keeps `--eff: var(--theta)` (the
+  parent's turn is already in force — no double phase). `--step`/`--align`/
+  `--sroot` then leave the stylesheet entirely; the canary list of the mirror's
+  extractor is unchanged (no selector appears or disappears).
+* `flat_k`, `sum`, `kown` become `f64` end to end (a 7-fan has a 51.43° step).
+
+### Verification
+
+* `cargo test -p rushi-web` — layout tests are angle-agnostic; add one assertion
+  that a fan of `k` gets `360/k`.
+* `e2e/orbit_probe.py` — the law check changes from `(slot − align)·step` to
+  `(rank − align)·360/k`; add: the live fixture's root fan is exactly
+  0°/120°/240°, `Time inject`'s lone branch stays at 0°, the lone nested child
+  is at 180°, and every fan's angular gaps are equal.
+* `e2e/flow_style_b_probe.py` (H) — read `--th`/`--rdeg` instead of
+  `--slot`/`--step`; keep the "no bead leaves the panel" and hit-test checks.
+* `e2e/flow_check.py` (HTTP only) and `e2e/rewind_probe.py` (Style A) are
+  unaffected.
+* The measurement harness for the table above lives in `/tmp/step_probe.py`
+  (throwaway).
+
+### Risks / open items
+
+* The mirror-pair proximity (two branches at `±a` are at the same screen height)
+  is inherent; the depth dim D-cone-10 is the mitigation. If the user wants the
+  *far* branch to move, that is a new decision, not part of this change.
+* `animation-timeline` is unused in the scene (the phase is a var), so nothing
+  here touches D9.
+
+### Open questions for the user
+
+1. **D-fan-3**: (A) exact "aligned branch straight up" always, accepting
+   ±90° for `k ≡ 0 (mod 4)`; or (C) the hybrid (offset only in that case)?
+2. **D-fan-4**: is "a nested fan is centred *below* its parent" right, or should
+   a nested fan start at the parent's own ray (+0°) when `k ≥ 2`?
+3. **D-fan-5**: keep the rotation rate at 240°/panel width?
+
+## 13.10 As built (v0.5.72) — the even fan
+
+**The user's decisions (2026-10-04, all three answered):** D-fan-3 → **(C) the
+hybrid** ("按你建议来"): the aligned branch points straight up, and a fan whose
+size would land a branch exactly on ±90 (`k % 4 == 0`) is nudged half a step
+instead. D-fan-4 → **centred on 180** ("嵌套扇以 180° 为中心"). D-fan-5 → the
+rotation rate is **unchanged** ("旋转速率暂时不变"). D-fan-1/2/6 were not in
+question (the step is `360/k` per fan, ranks per fan, no fit change).
+
+**As shipped.** Client + stylesheet only; the server is untouched (its
+`orbit.step_deg`/`orbit.arc_deg` are now *both* unread — the design doc says
+so, so nobody trusts them).
+
+* `web-leptos/src/rewind.rs`:
+  * `FAN_EDGE_ON = 0.087` (5° off the camera's axis), `fan_step(k, nested)`
+    (`360/k`, capped at 120 for a nested fan), `fan_root_theta(rank, align, k)`
+    (the signed step distance plus the half-step nudge when `k % 4 == 0`) and
+    `fan_nested_theta(rank, k)` (centred on 180, quarter-step nudge when
+    180 ± 90 would reappear).
+  * `Cone` loses its scene-wide `step`; `branch()` takes `rank`/`step`/`theta`/
+    `rdeg`/`sum` (all the angles in degrees, `f64`) and writes `--slot`
+    (rank), `--step` (the fan's spacing, informational), `--th`, `--rdeg`,
+    `--sum`, `--kup`, `--kown`.
+  * The child fan is the parent's `kids` list enumerated (rank), not the old
+    ±2-slot pattern; `align` becomes a **rank** in the root fan; the track's
+    inline style is down to `--cols`/`--lanes`.
+  * A `#[cfg(test)] mod fan_angles_tests` writes the law down as assertions
+    (even gaps, never edge-on, the front's nudge rule, a nested fan below its
+    parent). The wasm crate cannot run host tests, so these are *compiled* for
+    `wasm32-unknown-unknown` (`cargo test -p rushi-web-ui --no-run --target
+    wasm32-unknown-unknown` ✓) and *executed* by extracting them verbatim into
+    a standalone host harness (`/tmp/fan_check.rs`, `rustc --test` ⇒ **2
+    passed**), plus by the browser probes below.
+* `web-leptos/style.css`: `--root_a: calc(var(--rdeg, 0) + var(--phase, 0))`,
+  `--theta: var(--th, 0)`; the nested rule keeps `--eff: var(--theta)` and no
+  longer overrides `--theta`; `--step`/`--align`/`--sroot` leave the stylesheet.
+  No selector appears or disappears, so the mirror's canary list is unchanged.
+
+**Measured on the live `rewind` session** (the user's own example: a root fan of
+3 + one nested child), by re-reading the painted beads' rects — before (fixed
+30° step, server slots) vs after:
+
+| | angles | branch beads covering a **trunk** bead | bead pairs < 13px |
+| --- | --- | --- | --- |
+| before | 0° / 60° / 90° (+ nested at −60°) | **7** | **8** |
+| after | 0° / 120° / −120° (+ nested at **180°**) | **1** | **2** |
+
+**The probes, all re-run after the change:**
+
+| probe | v0.5.71 | v0.5.72 |
+| --- | --- | --- |
+| `cargo test -p rushi-web` | 71 | **71 passed** (the server is untouched) |
+| `cargo test -p rushi-web-ui --no-run --target wasm32` | — | compiles (13 pre-existing warnings); the fan-law assertions run in a host harness: **2 passed** |
+| wasm `cargo check` + `trunk build` | clean | clean (13 pre-existing warnings) |
+| `orbit_probe.py` | 44 / 0 | **48 passed / 0 failed** (L2h-L2k added; L7a now proves the alignment through `--rdeg`) |
+| `flow_style_b_probe.py 8480` | 66 / 0 | **68 passed / 0 failed** (H11/H12 added; H reads `--th`/`--rdeg`) |
+| `flow_check.py 8480` | 8 / 0 | **8 sessions, 0 problems** (HTTP only) |
+| `rewind_probe.py` | 140 | **PASS (140 checks)** |
+
+**Two trap notes worth keeping.** (1) A fan's angle must be built from a
+**per-fan rank**: driving `360/3` off the root fan's *global* slots `{0, 2, 3}`
+put two branches on the same angle (0.0px apart, 7 overlapping pairs) because
+slot 3 wraps to 0. (2) A fan of one has no "gap" — its spacing is the whole
+circle, so a check that compares its single angle's gap to a *capped* spacing
+fails by construction (the nested fan's cap is 120, its lone angle 180).

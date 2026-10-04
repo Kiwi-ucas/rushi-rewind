@@ -1,7 +1,7 @@
 # The rushi-webui revision these mirrors were taken from.
 # Written by scripts/sync-from-webui.sh — do not edit.
 repo     = /Users/kiwi/Desktop/deepseek_harness/rushi/rushi-webui
-rev      = 5f94a5e3c22aec1e397004da7b87935436b99fb5
-subject  = v0.5.71: the cone's full circle — the three reported defects (plan §13.7/§13.8, D-cone-8..12)
+rev      = 063673c209c36d248629184f966f2da9ad77d124
+subject  = v0.5.72: the fan is spread over the full circle (plan §13.9/§13.10, D-fan-1..6)
 worktree = clean
-synced   = 2026-10-04T07:12:01Z
+synced   = 2026-10-04T07:43:52Z
