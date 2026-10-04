@@ -1,7 +1,7 @@
 # The rushi-webui revision these mirrors were taken from.
 # Written by scripts/sync-from-webui.sh — do not edit.
 repo     = /Users/kiwi/Desktop/deepseek_harness/rushi/rushi-webui
-rev      = fdc9722d64609358e7973e397963f7044ee9e86b
-subject  = v0.5.73: the focus carousel — a branch snaps to the top, the rest keep to the lower half
+rev      = 0525fce9ef15ed1d12fdd3220c54288abff070a3
+subject  = v0.5.73 docs: record the wheel's pan fallback (a fan of 0/1 has nothing to focus)
 worktree = dirty
-synced   = 2026-10-04T17:07:22Z
+synced   = 2026-10-04T17:08:31Z
