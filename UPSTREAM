@@ -1,7 +1,7 @@
 # The rushi-webui revision these mirrors were taken from.
 # Written by scripts/sync-from-webui.sh — do not edit.
 repo     = /Users/kiwi/Desktop/deepseek_harness/rushi/rushi-webui
-rev      = ec67918251ceb9a40322c005bace46569e1d6de1
-subject  = v0.5.74: round 5 — the snap's commit is continuous, no strike on a number, and a nested fan opens along its parent
+rev      = 00083474c9daf3416772072af662130df90047bf
+subject  = docs: no tags — the rollback points are the commits (pre-carousel 0d4752d, carousel 0525fce, round 5 ec67918)
 worktree = dirty
-synced   = 2026-10-04T18:49:21Z
+synced   = 2026-10-04T19:08:20Z
