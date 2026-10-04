@@ -1998,3 +1998,723 @@ put two branches on the same angle (0.0px apart, 7 overlapping pairs) because
 slot 3 wraps to 0. (2) A fan of one has no "gap" — its spacing is the whole
 circle, so a check that compares its single angle's gap to a *capped* spacing
 fails by construction (the nested fan's cap is 120, its lone angle 180).
+
+## 14. Round 5 — the relaxation model and the tilted cone (proposed 2026-10-04)
+
+**The two asks (user, verbatim):**
+
+1. *"你的C方案可以，我还有在你的C方案上更好的解决方法：为节点和连线创建实体，实体间存在
+   斥力，会自动排斥开，同时可以避免节点重合和连线干扰的问题"* — model the nodes **and the
+   connectors** as bodies with mutual repulsion, so that overlaps and line interference
+   resolve themselves.
+2. *"圆锥面的开口方向不要正对着水平右方向，而是向右上一点角度。这样在旋转时，在主分支上方的
+   分支会因为圆锥面这样的角度被放大……上方放大的这个分支保持和主线节点相同的大小"* — tilt
+   the cone so its opening points up-right instead of straight right; the branch above the
+   main line then reads as the near/focused one, but it must keep the **main line's node
+   size**.
+
+This section is the research + plan that follows. Section 14.8 lists the decisions I need.
+
+---
+
+### 14.1 What the scene is today (measured, not remembered)
+
+**The mechanism.** The server projection gives every round a column `x`, a lane and a branch
+membership (`fin`). The client turns that into, per branch: a container sitting on its parent's
+bead, `--th` (the fan angle, degrees), `--n` rounds, `--dx` columns; per bead: `--x` and
+`--out` (1-based steps out); and one spine bar per lit run. The stylesheet does the rest:
+
+```css
+.rw-branch   { top: var(--axis); transform: rotateX(calc(var(--a) * 1deg)); }
+.rw-branch .rw-branch { top: calc(-1 * var(--po) * var(--q)); }        /* nested */
+.rw-branch .rw3-node  { top: calc(-1 * var(--out) * var(--q)); }        /* a bead */
+.rw-br-line  { width: hypot(dx*cell, n*q); transform: rotate(-atan2(n*q, dx*cell)); }
+```
+
+So one step out is `(cell, −q·cos a, −q·sin a)` in CSS axes (x right, **y down**, z toward the
+viewer): **`cos a` sets the height and `sin a` sets the depth**, and the two are orthogonal
+coordinates of the same circle. `#rw-flow-track { perspective: 1400px }` magnifies by
+`k = 1400/(1400 − z)` — so the near half of the circle is **bigger than 1.0** and the far half
+smaller.
+
+**The rotation.** `--phase = (scrollLeft − --rw0) · --dpp`, `--dpp = 240°/panelWidth`, and a
+branch's effective angle is `θ + phase`. Every branch therefore turns by the same angle as the
+user scrolls: **the layout must be judged over the whole circle, not at one screenshot.**
+
+**The live fixture (`rewind`, 2026-10-04).** `cols 34`, `cell 32.359px`, `q 25.714px`,
+`axis 209px` (panel height 418px), `d 1400px`, `r = 180px`; 4 fins — a **root fan of 3**
+(0°, 120°, −120°) plus one **nested** child (180°, `po = 1`).
+
+**The phase sweep.** Swept **on the live page** (CDP wheel events, 24 phases at 15°, the bead
+centres read off the painted dots) and cross-checked with an analytic model of the same laws:
+
+| quantity | value (measured live) |
+| --- | --- |
+| phases with **no** bead pair < 14px | **0 / 24** |
+| pairs < 14px per phase | **2 … 6** (the best phases are 2, the worst 6) |
+| the nested `fin1 r21` × `trunk r31` pair | **0.0px at *every* phase** (24 / 24) |
+| the next-closest pairs | the mirror pair `fin2 r22` × `fin3 r23` (6.1-12.6px) and a branch bead against a trunk bead (1.1-3.6px at the edge-on phases) |
+| phases where some branch is within 8.6° of edge-on (analytic model, 2° steps) | 54 / 180 |
+
+The first version of this section claimed the exact coincidence only happened in 15 of 180 phases
+— that was **wrong**, and the bug is worth writing down: the model did not rotate a *nested*
+container's offset by its parent's turn, so the child only met the trunk near phase 0. Measured
+on the page, the nested coincidence is **phase-independent** (see K1 below).
+
+**Three classes, three different causes.**
+
+* **K1 — the exact coincidence, and it is phase-independent.** A nested branch whose container
+  offset `po` equals a bead's `out` (a child of its parent's **first** bead — the live case,
+  `po = out = 1`) has its first bead exactly on a trunk bead: the two radial contributions
+  cancel (`(po − out)·q = 0`) *and* the depth cancels too (`−(po − out)·q·sin a = 0`), so the
+  perspective cannot separate them either. Measured on the page at all 24 sampled phases:
+  **0.0px every time**; `elementFromPoint` there returns the **branch** bead, so the trunk round
+  is permanently covered. Any angle- or phase-based fix is therefore useless against K1 — only
+  moving the child itself (§14.3) can clear it.
+* **K2 — the edge-on pass.** At `a = ±90°` the vertical offset is *identically* zero: the
+  branch's beads lie on the trunk row, one column apart, each a few px from the trunk's own
+  beads (the perspective separates them a little: measured live, 1.1-3.6px at the edge-on
+  phases). **No angular or radial
+  change can remove K2** — it is the geometry of a full circle (D-cone-8) plus a trunk bead in
+  every column plus "one step out = one column right". It is a *transient* (≈ ±8.6° of phase,
+  ≈ ±37px of scroll) but the user may stop anywhere.
+* **K3 — the mirror pair.** Two branches at `±a` share a height (`cos` is even) and differ only
+  in depth, so only the dim (D-cone-10) and the perspective's few px separate them: 4.2px at
+  the live rest phase. Inherent to a symmetric fan.
+
+**The size measurements (the motivation for ask 2).** Painted dot widths at rest:
+
+| bead | angle | z | dot |
+| --- | --- | --- | --- |
+| trunk (any) | — | 0 | **13.00 x 13.00** |
+| fin 0, round 14 (aligned) | 0° | 0 | 13.00 |
+| fin 1, round 21 (nested) | 180° | 0 | 13.00 |
+| fin 2, round 22 (far) | +120° | −22.3 · out | 12.80 |
+| fin 3, round 29 (near) | −120° | +22.3 · out | **14.63** (+12.6%) |
+
+fin 3's *last* bead grows to 14.63px: `k = 1400/(1400 − 7·25.714·0.866) = 1.125` ⇒
+`13 · 1.125 = 14.63` — the model and the page agree, so **the near branch is up to 12.6% bigger
+than the main line today**. That is exactly what the user is describing.
+
+**The bar the suite currently accepts.** `orbit_probe.py`'s `L8b` is literally *"every visible
+bead is clickable, **or covered by a bead on the same px**"* — it tolerates K1. Any new model
+has to raise that bar.
+
+---
+
+### 14.2 The constraints any solution must respect
+
+| # | constraint | where it comes from |
+| --- | --- | --- |
+| C1 | The trunk is the timeline: its beads never move off their column or off the axis row. | D1 / "the trunk stays a straight line" |
+| C2 | A branch is **one straight ray** from its parent's bead. A connector therefore cannot be an independent body — it moves **with** its branch. A bead may slide **along** its own ray (that keeps it on the ray and the spine straight). | D-cone-6, "every connector must be a straight line with no bends" |
+| C3 | The rotation stays CSS + scroll driven. **No per-frame simulation**: the solver runs once per layout and its result is baked into the same custom properties. | D9/D7, the wheel/scroll design |
+| C4 | The objective must be **phase-independent** — the user can stop at any phase. | `--phase` = scroll |
+| C5 | Deterministic: same data + same panel ⇒ the same picture (no RNG, no time), so the probes can assert it. | the probe suite |
+
+C2 is the one place where the literal form of ask 1 has to bend: a connector that floats free
+would have to bend or detach from its parent, and both are locked against. The physical reading
+that *is* legal: **a branch is a rigid body** (its hinge is its parent's bead; it may turn and
+it may start a little farther out) and **a bead may slide along its own branch**.
+
+---
+
+### 14.3 Proposal A — "entities and repulsion" as a layout-time relaxation
+
+**A1 — the bodies and the legal degrees of freedom.**
+
+| body | may move | may not |
+| --- | --- | --- |
+| trunk bead | — (fixed) | its column, its row |
+| branch | its angle θ within `±CAP` of its fan's even angle; its radial offset `--d0 ∈ [0, 1]` steps (all its beads shift out together; the spine already has `--d0`) | its hinge (= its parent's bead), its straightness, its rounds' order |
+| branch bead | radially along its own ray, if we also let the spine take `--d1` (the last bead's step) — the ray stays straight either way | its ray, its column ordering |
+| spine | nothing on its own; it is redrawn from the first to the last bead | leaving its branch |
+
+**A2 — the objective.** Minimise the worst violation over a phase set Φ (72 phases at 5°; the diagnosis
+swept 180 at 2° and saw no phase pass), with a hard bar:
+
+* **R-a** no two beads within 1px at any phase (this kills K1 outright);
+* **R-b** at the *rest* phase, no two beads within one dot (13px);
+* **R-c** over the whole rotation, a pair < 13px is allowed **only** when one of the two is on a
+  branch within ±8.6° of edge-on at that phase (K2, admitted);
+* **R-d** no bead within 6px of a *foreign* branch's spine at any phase;
+* **R-e** the fan still reads even: a branch's angle stays within `±CAP` of `fan_root_theta` /
+  `fan_nested_theta` (see D-phys-6).
+
+**A3 — the solver.** Seed = today's even fan. Per iteration: evaluate the violations over Φ
+analytically (the client has `q`, `cell`, `axis` in px after `sync_scene_metrics`), then apply a
+damped correction per branch (angle) and per branch (radial), accumulate, clamp to the legal
+range, and repeat (≤ 40 iterations). Complexity is tiny: |Φ| × pairs ≈ 72 × (48²/2) ≈ 83k
+distance checks per iteration ⇒ a few ms in wasm, and only when the data or the panel changes.
+The result is memoised on `(projection hash, panel w/h, cell, q)` so a re-render cannot move the
+picture (C5) and there is no render loop.
+
+**A4 — what it fixes, and what it cannot.**
+
+* **K1 → gone, guaranteed** (R-a). This is the defect the user actually hit.
+* **K3 → much better**: a repulsion between the two branches of a mirror pair pushes them *apart*
+  symmetrically, so the 4.2px gap grows to a dot's width (if `CAP` allows the turn).
+* **K2 → not fixable by any angle or radius**, see §14.1. Three ways out (D-phys-5):
+  * **(a) accept + cue**: when `|cos a| < 0.15` the whole branch is *near edge-on* — dim it (and
+    optionally shrink its dots) so it reads as "this branch points at you" instead of as trunk
+    beads. Cheap, honest, does not fix the overlap.
+  * **(b) hard fix**: give branch beads a **half-column x offset** (they then never share a
+    column with a trunk bead ⇒ ≥ 16px = half a cell apart even at edge-on). Real fix, at the
+    price of the branch's rounds sitting half a column off the trunk's grid.
+  * **(c) accept silently** (documented).
+
+**A5 — where it lives.** Client-side, as a pure function (the same pattern as `fan_angles_tests`:
+written as testable Rust, compiled for wasm, and run in a host harness by extraction + asserted
+by the browser probes). The server keeps its projection unchanged — it does not know the px
+metrics, and making it viewport-dependent would poison the cache key.
+
+---
+
+### 14.4 Proposal B — the tilted cone and the size cap
+
+**B1 — the size cap (the part that is unambiguous).** Cap the perspective magnification at the
+main line's size, per bead, about the bead's own centre:
+
+```
+scale = min(1, 1/k) = min(1, (d − z)/d) = min(1, 1 + z/d)
+```
+
+* z ≤ 0 (away) ⇒ the bead keeps its shrunken size: the far half still reads as background.
+* z > 0 (toward the viewer) ⇒ the bead is scaled *back* to 13.00px, so the focused branch is
+  exactly the main line's size — the user's ask.
+* Scaling about the bead's **centre** leaves the centre where it is, so the spine (drawn
+  separately, from the first to the last bead) stays exactly on the beads. No locked rule moves.
+
+CSS cannot know `z` on its own (it accumulates along a nesting chain), so the **render writes it
+as a number of steps** (`--zp = Σ rᵢ·sin aᵢ`) and the **layout writes `--qk = q / 1400`** as a
+plain number ⇒ `scale = min(1, 1 + var(--zp) * var(--qk))` — no length division in CSS.
+
+**B2 — the tilt, and one uncomfortable fact.** *Up* (the screen height, `cos a`) and *near*
+(the depth, `sin a`) are **orthogonal directions of the same circle**. So "the branch above the
+main line" is *not* automatically the near one: at any phase the upper region holds a
+mirror pair, one near (magnified) and one far (dimmed). Two candidate readings of the ask:
+
+* **(i) roll the fan's frame about the view axis** — `transform: rotateZ(ψ) rotateX(a)` on each
+  branch container (ψ ≈ −8°…−12°). This *is* "the cone's opening points up-right": the cone's
+  axis is the column direction, and the roll gives it an upward component, so the whole fan
+  leans up-right and its beads drift upward as they go out — **while the trunk stays exactly
+  horizontal**. It does **not** make "up" equal "near" (nothing can), and the mirror pair still
+  shares a height; the depth dim + the size cap remain the separators.
+* **(ii) bias the fan's reference direction** (a constant added to the phase/θ, e.g. −25°): the
+  focused/aligned branch would rest at *up-and-near* (magnified, then capped by B1) and its
+  opposite at far. One constant, but it breaks D-fan-3's "the aligned branch points straight
+  up".
+
+My recommendation is **(i)** — it is the literal reading, it keeps "aligned = straight up", and
+it adds the up-right lean the user asked for — with **(ii)** available as a small constant if
+they want the focused branch to rest *near* as well.
+
+**B3 — the cost of the tilt (fit).** The fit is `r = min(axis, h − axis) − 16 − 13`,
+`q = r / longest`; with the roll, the top of the content is
+`longest·(q·cos ψ + cell·|sin ψ|)` — about 30.9px per step against 25.7px today (+20% at ψ = 10°),
+and the axis row (currently `SCENE_AXIS_FRAC = 0.50`) must be re-centred. Both are a *little*
+more branch shortening on top of D-cone-9's ~30%. ψ must be chosen by look, not by taste:
+−8° is ≈ 4.5px/step of drift (barely visible), −15° is ≈ 8.4px/step (a clearly slanted cone).
+
+**B4 — does the tilt apply to the flat (reduced-motion) projection?** It is a *static* lean, so
+it can: `--kroot`'s law would need the same ψ. Decision D-slant-4.
+
+---
+
+### 14.5 Verification plan
+
+New/raised checks (the existing suite counts 48 + 68 + 8 + 140 today):
+
+| id | check |
+| --- | --- |
+| **R1** | at the rest phase, zero bead pairs < 14px (today: 4 — the nested 0.0px pair, the mirror pair at 6.1px, and 13.0px) |
+| **R2** | swept over N phases driven by real wheel events, **zero pairs < 1px** (today: the nested `fin1 r21` × `trunk r31` pair is 0.0px at *every* phase) |
+| **R3** | over the same sweep, every pair < 14px has a branch within ±8.6° of edge-on, or is the K1 pair once §14.3 has moved it (today: 2-6 pairs per phase, and the mirror pair is 6.1-12.6px apart) |
+| **R4** | no bead within 6px of a foreign spine at the rest phase |
+| **R5** | the solver is stable: two loads of the same session at the same panel give identical `--th`/`--d0`/`--zp` values |
+| **R6** | with the cap: a bead on the near branch measures 13.00px (today 14.63px) and the far branch stays < 13.00px |
+| **R7** | with the tilt: the trunk's beads are still exactly on the axis row (`|Δy| < 0.5px`) and a branch's ray is still one straight line (the spine's endpoints coincide with its first/last bead) |
+| **R8** | the even fan still reads even: every angle is within `CAP` of the fan law, and a fan of k has k distinct angles |
+| `L8b` | raised: "every visible bead is clickable" — a bead may only be covered by itself (K1 gone) |
+
+The phase-sweep harness (`/tmp/sweep2.py`, a model that reproduces the painted page) is the tool
+for R2/R3; the browser probes do R1/R4/R6/R7 on the real DOM.
+
+---
+
+### 14.6 Step plan (once the decisions land)
+
+1. **O-relax-1** — the law as a pure function + its unit assertions (`relax_*` next to
+   `fan_*`), host-harness extraction, wasm compile.
+2. **O-relax-2** — the layout pass: read `q`/`cell`/`axis`, run the solver, write the result
+   into a memoised resource the cone render reads; the render gains `--d0`, `--d1`, `--zp`.
+3. **O-relax-3** — the K2 decision implemented (D-phys-5), the `L8b` bar raised.
+4. **O-slant-1** — the cap (`--zp`, `--qk`, the per-bead `scale`) + `R6`.
+5. **O-slant-2** — the tilt (D-slant-2/3/4): the stylesheet's `rotateZ`, the flat law, the fit
+   and the axis re-centre.
+6. **O-slant-3** — docs (§3b.6 + §6 numbers), the mirror's canary/gone-set check, probes, both
+   repos, a version bump.
+
+Everything stays client + stylesheet: **the server projection does not change** (its
+`orbit.step_deg`/`arc_deg` stay unread).
+
+---
+
+### 14.7 Non-goals (this round)
+
+* No live per-frame physics, no continuous animation beyond the existing scroll-driven phase.
+* No change to the trunk, the columns, the states, or the click/hit-test contract.
+* No zoom, no mini-map, no second view style (D4/D-orb-10 still hold).
+* Connectors do not become free bodies (C2).
+
+---
+
+### 14.8 Open questions for the user
+
+**A — the relaxation**
+
+* **D-phys-1**: do you accept the *constrained* form of ask 1 — bodies are **branch** (angle +
+  radial offset) and **bead** (radial slide), and a connector moves with its branch (it can
+  never float free)? **[recommended: yes]**
+* **D-phys-2**: the solver runs **once per layout** (client side, deterministic, memoised) and
+  its result is baked into CSS custom properties — not a live simulation.
+  **[recommended: yes]**
+* **D-phys-3**: the bar is judged over the **whole rotation** (worst phase), not just the
+  picture on screen. **[recommended: yes]**
+* **D-phys-4**: the bar itself: R-a (no <1px anywhere) + R-b (rest phase: no <13px) + R-c (over
+  the rotation, <13px only near edge-on) + R-d (no bead within 6px of a foreign spine).
+  **[recommended: yes]**
+* **D-phys-5 (K2, the edge-on pass)**: accept + a cue (dim/shrink the branch when
+  `|cos a| < 0.15`), or the **hard** half-column fix, or accept silently?
+  **[recommended: (a) cue for v1; (b) later if the transient still bothers you]**
+* **D-phys-6**: how far may the solver move a branch off its even-fan angle? ±10° / ±20° / free.
+  **[recommended: ±20° — the fan still reads even, the mirror pair gets room]**
+* **D-phys-7**: may a *bead* slide radially (the spine takes `--d1`), or only whole branches?
+  **[recommended: whole branches in v1]**
+
+**B — the cone**
+
+* **D-slant-1**: cap the magnification so a near branch is exactly the main line's size
+  (13.00px), the far half keeps shrinking. **[recommended: yes — it is the literal ask]**
+* **D-slant-2**: which tilt — (i) the roll (`rotateZ`, the cone's axis leans up-right, the trunk
+  stays horizontal), (ii) bias the fan's rest direction (the aligned branch rests up-and-near,
+  but no longer "straight up"), or (iii) both? **[recommended: (i)]**
+* **D-slant-3**: if (i), how far? ψ = −8° / −12° / −15° — note the fit cost (the branches
+  shorten again). **[recommended: pick by look, start at −10°]**
+* **D-slant-4**: does the lean also apply to the flat / reduced-motion projection?
+  **[recommended: yes, it is static]**
+* **D-slant-5**: with the lean, the axis row and `SCENE_AXIS_FRAC` must be re-centred
+  (the content's top grows by `cell·|sin ψ|` per step). **[recommended: recompute, then
+  re-measure]**
+
+## 15. Round 6 — the focus carousel: snap one branch to the top (proposed 2026-10-04)
+
+**The ask (user, verbatim):** *"保持刚才说的右上开口的圆锥面，转动时分支行为可以优化。不再
+固定分支角度间距，滚轮转动时，自动吸附对应的分支到圆锥面正上方的位置，此时不管其余有多少分支，
+全部都位于圆锥面的下半部分。每一次滚轮滚动，都会让上方的分支回到下方并让一个新的分支转动到上方
+并吸附。（整体还是保持圆锥面转动行为）这种情况下，下方的分支占用的空间会很小，所以把主干位置
+向下放一些，为上方的分支腾出更多的显示空间"*
+
+As I read it, four things:
+
+1. the cone keeps the up-right opening of §14.4/B (the roll),
+2. the fan is **no longer spread over the full circle**: the focused branch sits **on top** and
+   the others are in the **lower half**,
+3. a wheel gesture **snaps** a *new* branch to the top (the previous one goes down) — one new
+   branch per gesture — while the scene still *rotates*,
+4. because the lower branches then need little room, the **axis row moves down** so the focused
+   branch gets more space.
+
+This section is the research and the plan. Decisions are in §15.8.
+
+---
+
+### 15.1 What the interaction does today (measured)
+
+**The wheel is a scroll proxy, and the phase is that scroll.**
+
+```rust
+fn pan_and_turn(el, delta) {          // the wheel and the drag both come here
+    let before = el.scroll_left(); el.set_scroll_left(before + delta);
+    add_turn((before + delta) - el.scroll_left());   // v0.5.69: the track's refusal becomes turn
+    mark_scroll(el);                  // --rw-scroll = scrollLeft + turn
+}
+--phase = (--rw-scroll − --rw0) · --dpp      --dpp = 240 / panelWidth
+```
+
+Measured on the live `rewind` scene (CDP, a synthetic 100px wheel notch):
+
+| before | after |
+| --- | --- |
+| `scrollLeft 0`, `scrollWidth 1200`, `clientWidth 1200` | `scrollLeft 0` (**pinned**), `--rw-scroll 100` |
+| `--dpp 0.2` | `--phase calc((100 − 0) * 0.2)` |
+
+* **The track fits its panel exactly** (1200 = 1200), so `scrollLeft` never moves: every wheel
+  pixel becomes `turn`. This is the v0.5.69 case, and it means the *only* thing the wheel does
+  on this fixture is turn the cone.
+* **1 wheel px = 0.2°**, so a 100px notch = **20°**. Changing which branch is on top costs
+  `120°` ⇒ **~600px of wheel ≈ 6 notches** (5–15 depending on the device's notch size).
+* A **layout point** (`relayout_scene`: entering the view, picking a round, a resize) resets
+  `turn = 0` and `--rw0 = scrollLeft`, so "at rest the aligned branch is at the front"
+  (D-orb-8). `align` = the topmost trunk-parented branch of the **selected** (or current)
+  round's fin — so *clicking a bead already re-aligns the fan* (L7).
+* The drag pans the same way; a **horizontal** wheel delta is left to the browser (D9); the
+  flat / `prefers-reduced-motion` path pins `--phase: 0`.
+
+**The fan today** is the even full circle of §13.10 (per-fan ranks, `360/k`, a half-step nudge
+when `k % 4 == 0`, a nested fan centred on 180°). **The fit today** is symmetric:
+`axis = 0.5·h`, `r = min(axis, h − axis) − 16 − 13`, `q = r / longest` ⇒ on this panel
+(`h = 418px`) `axis = 209`, `r = 180`, `q = 25.714` ⇒ a 7-round branch spans 180px up *and*
+180px down.
+
+---
+
+### 15.2 The geometry of the new model
+
+**The law (relative to the focus).** `align` already makes the angles rank-relative, so the law
+becomes: the focused branch (rank 0) at `θ = 0` (the top); the other `k−1` spread over the
+lower arc, inset by `δ` from the horizontal so that **no branch ever sits on ±90°** (edge-on):
+
+```
+root fan:   θ(0) = 0                                        (the focused branch, on top)
+            θ(j) = 90 + δ + (j−1) · (180 − 2δ)/(k−2)        for k ≥ 3, j = 1..k−1
+            θ(1) = 180                                      for k = 2
+nested fan: θ(j) = 180 + (j − (k−1)/2) · (180 − 2δ)/max(k−1, 1)   (centred opposite the
+                                                                  parent's ray; k = 1 → 180)
+```
+
+The nested form is the same arc *centred* rather than hung from the top, because a nested fan
+has no "top" child — the parent's own ray is the one direction D-cone-7 forbids.
+
+At `δ = 30°` a fan of 3 gives `0° / 120° / 240°` — **exactly today's angles** — so for the live
+fixture nothing about the rest layout changes; the change is the *behaviour*, the axis and the
+scale.
+
+**The detents.** A branch is on top when `θ_j + phase = 0` ⇒ `phase = −θ_j`. So the detent set is
+the `k` branch angles, walked in the fan's **rank order** (the server's `fin` order, stable
+across reloads) and **wrapping** — the gesture therefore never dead-ends, which is what
+D-cone-8/v0.5.69 was really about ("an unbounded gesture must produce an unbounded, wrapping
+angle"). The cone does keep rotating — between detents it is a real turn, at a detent it is at
+rest.
+
+**The win, quantified — and the three things it does not win.** Modelled on the live fixture at
+all three detents with `δ = 30`, `f = 0.72` (`q 38.9px`, the unfocused scale `s 0.65`):
+
+| detent (focused) | the angles | edge-on | closest pair **excluding** the known K1 pair |
+| --- | --- | --- | --- |
+| fin0 (rank 0) | `0 / 120 / 180 / 240` | none | **4.3px** `fin2 r22` × `fin3 r23` |
+| fin2 (rank 1) | `0 / 60 / 120 / 240` | none | **6.7px** `fin0 r14` × `fin3 r23` |
+| fin3 (rank 2) | `0 / 120 / 240 / 300` | none | **6.7px** `fin0 r14` × `fin2 r22` |
+
+* **Won:** no detent has an edge-on branch, so the §14.1 **K2** class (a branch's beads on the
+  trunk row, 1.1-3.6px from a trunk bead at the edge-on phases) is gone at rest. The promotion
+  itself still crosses the edge-on zone once per snap (17.2° of the 120° turn ⇒ ≈ 45ms of a
+  300ms animation) — a transient, not a rest state.
+* **Not won, (a):** the **K1** exact coincidence — modelled at all three detents, the nested
+  `fin1 r21` × `trunk r31` is still **0.0px**. The law cannot move a lone nested child off 180°
+  (that is its parent's ray, D-cone-7).
+* **Not won, (b):** the **K3 mirror pair comes back by construction.** "The others in the lower
+  half" *symmetric about straight-down* makes the two lower branches mirror images — and two
+  branches whose beads share a column (here fin2 and fin3 both start at column 13) then land on
+  the same row: measured today at 6.1px, modelled at **4.3px** with the unfocused scale (the
+  scale shrinks the very `cos` that separates them). So the lower half is *not* collision-free:
+  it needs either an asymmetric bias in the arc, a **column-aware** angle (a branch's angle
+  depends on which columns it owns — which is legitimate, the law is already per-fan), or the
+  relaxation.
+* **Not won, (c):** the two lower branches are also 6.7px from a *nested* bead when the aligned
+  branch is not rank 0.
+
+**Therefore the carousel and §14.3's relaxation are one change, not two.** The carousel supplies
+the *targets* (the `k` detents); the relaxation resolves what is left at each of them, so it runs
+**once per layout per detent** (`k` solves instead of one, still a few ms in wasm) and its phase
+set Φ is simply the detent set. That also *simplifies* §14.3: no 72-phase sweep is needed, the
+objective is judged at the `k` rest states — and **the relaxation should land first**, because it
+is what fixes the defect the user actually reported.
+
+**What it does not fix.** The **K1 exact coincidence** is about the *nested* case
+(`po = out`, a child of its parent's first bead) and is independent of this law: the lone nested
+child at 180° would still land on the trunk row. That one still needs §14's relaxation (or an
+inset that also excludes 180, which would put the child on its parent's ray — forbidden by
+D-cone-7).
+
+**A hard fact: "all the others below" is only possible for `k ≤ 3`.** Write the fan's branches
+as points on the circle. After promoting *any* rank to the top, every other branch must land in
+`(90°, 270°)`; that means every forward gap between consecutive branches must exceed 90°, and
+the gaps sum to 360° ⇒ at most three branches. For `k ≥ 4` **some branch must stay above the
+trunk** at some detents, whatever the spacing. (Every live session has `k ≤ 3` — `rewind` is
+3 + one nested child, `Time inject` 1, everything else 0 — so this is a future concern, but it
+must be decided, D-snap-6.)
+
+**The top branch is exactly the main line's size.** At a detent the focused branch has
+`a = 0° ⇒ z = 0 ⇒ k = 1` — measured today: the aligned branch's dots are exactly 13.00px. So
+the "keep the focused branch the main line's size" ask of §14.4/B1 is satisfied *by
+construction* at the top, and the cap only has to tame the branches that are *passing*.
+
+---
+
+### 15.3 Space: the axis moves down, the unfocused branches shrink
+
+**The asymmetric fit.** Instead of "the smaller half fits the whole circle", two rooms:
+
+```
+focused  (up):    q · longest                 ≤ f·h − 16 − 13
+unfocused (down): q · longest · s · max|cos θ| ≤ (1−f)·h − 16 − 13
+```
+
+with `f = SCENE_AXIS_FRAC` (0.50 today) and `s` the unfocused branches' scale. For the live
+panel (`h = 418`, `longest = 7`):
+
+| f | q (focused length) | vs today | s (live: `max|cos θ| = 0.5`) | bead spacing `s·q` |
+| --- | --- | --- | --- | --- |
+| 0.50 (today) | 25.7px | — | 1.00 | 25.7px |
+| **0.68** | **36.5px (+42%)** | | 0.82 | 29.9px |
+| **0.72** | **38.9px (+51%)** | | 0.65 | 25.3px |
+| 0.80 | 43.6px (+70%) | | 0.36 | 15.7px — tight |
+
+(`q = (f·h − 29)/longest`, `s = ((1−f)·h − 29) / (q·longest·max|cos θ|)`.)
+
+So `f ≈ 0.68–0.72` is the sweet spot: the focused branch grows 40–50%, and the unfocused ones
+are drawn at 0.65–0.82 with their **dots counter-scaled back to 13px** (the same trick the flat
+projection already uses, so they stay readable and clickable, and **consecutive** dots on one
+branch stay ~25–30px apart). At `f = 0.80` the compression starts to squeeze the beads too close.
+Note that this budget only covers *within* a branch: the *between*-branch collisions of §15.2
+are a separate constraint, and the scale makes them slightly worse, not better. "下方分支占用空间小" then holds *by construction*, and the scale also
+**doubles as the focus cue** together with the existing depth dim (D-cone-10).
+
+**The roll composes.** With the §14.4/B roll the focused branch points at the *cone's* top
+(screen-tilted by ψ) and still sits at `z = 0`, so it is still exactly 13.00px; the roll does
+not change any of the numbers above except that the vertical extent uses `cos ψ`.
+
+---
+
+### 15.4 The snap mechanics
+
+**The target rule (keeps v0.5.69's "a gesture is never a no-op").** On settle, the phase goes
+to the **next detent strictly in the direction of travel** (positive wheel ⇒ the smallest
+detent ahead; negative ⇒ the largest behind). A small notch therefore always advances **at least
+one** branch — "a new branch turns to the top" — and a long drag advances to the next detent
+ahead of wherever it ended, so nothing is ever swallowed or double-counted.
+
+**The animation.** A short `requestAnimationFrame` loop that writes `turn` and calls
+`mark_scroll` — exactly the existing single-value pattern (`--rw-scroll`), no Leptos
+reactivity, no `scroll-snap` (the proxy owns the offset, and native snap only understands real
+scroll positions), no animated custom property. ~300ms, eased; **skipped entirely under
+`prefers-reduced-motion`** (the flat path already pins `--phase`, here it just jumps).
+
+**Settle detection.** A debounce after the last wheel/drag event (~120ms) — the drag's
+`pointerup` settles immediately.
+
+**What drives the focus (the one interaction question).** Today the wheel's vertical delta pans
+the line and its leftover turns the fan. Three ways to attach the snap:
+
+* **(a) focus-only wheel** — the vertical delta advances the detents (one notch ⇒ the next
+  branch), the pan stays on the drag, the horizontal delta and the scrollbar. Clean and literal
+  ("每一次滚轮滚动…"), and on the live fixture **nothing is lost**: the track fits, so the wheel
+  cannot pan there anyway. On a wide session the wheel would stop panning the timeline.
+* **(b) pan + snap** — the wheel keeps panning (D7/D9 unchanged) and the settle snaps forward.
+  A notch then keeps its 20° and the *settle* does the branch change; the timeline pan survives
+  on every session.
+* **(c) both** — a plain vertical wheel focuses, shift+wheel pans. (More state, less obvious.)
+
+I recommend **(a)**, with the pan kept on the drag/horizontal delta/scrollbar (it is the literal
+ask, it is already what the fixture does, and it removes the "pan and turn at once" confusion).
+**(b)** is the fallback if the wheel's panning is wanted on long sessions.
+
+**The reset.** A layout point (enter the view, pick a round, resize) settles on the detent of
+the **aligned** branch (the selected round's top ancestor, else the current round, else rank 0)
+— D-orb-7/8 unchanged: entering the view shows a clean, snapped scene.
+
+**Selection.** The focus can be a *view* state (the fan snaps, the panel's selected round does
+not change) or the *selection* can follow the top branch (the panel then walks the branches with
+the wheel). D-snap-7.
+
+---
+
+### 15.5 What it supersedes, what it keeps, what it costs
+
+**Supersedes (needs the user's word):** D-fan-1 (the full-circle `360/k` step → the top + lower
+arc), D-fan-3's half-step nudge (no detent is edge-on any more — kept only for the `k ≥ 4`
+fallback), D-fan-4 (a nested fan is the same half-arc, centred opposite its parent's ray),
+D-fan-5 (240°/panel width → one branch per gesture), D-orb-8 (continuous rest → detent rest),
+and the *spirit* of D-cone-8's full circle (bounded again — but the **walk wraps**, so the
+v0.5.69 lesson holds: no gesture is ever a no-op, nothing parks forever).
+
+**Keeps:** the straight ray from the parent's bead (D-cone-6), the dim (D-cone-10), the
+asymmetric fit law (D-cone-9, generalised), and all of §14's constraints C1–C5. The §14
+relaxation is still needed for K1 (the nested exact coincidence), and the size cap of §14.4/B1
+still matters for the *travelling* branches.
+
+**Costs / risks:** for `k ≥ 4` "all others below" is impossible (D-snap-6); the unfocused
+branches are smaller (mitigated by the counter-scaled dots); the fan is no longer a rigid
+rotation of one fixed shape (the angles are re-derived per focus — which is how `align` already
+works); the animation writes `--rw-scroll`, so the snap must update `turn` too or a later
+`mark_scroll` would jump; a very fast wheel could produce a queue of snaps (the animation must
+be interruptible and the pending target recomputed).
+
+---
+
+### 15.6 Verification plan
+
+| id | check |
+| --- | --- |
+| **S1** | at every detent (all `k` of them, driven by the wheel), each branch's angle is `θ_j + phase` with the focused one at `0 ± 0.5°` |
+| **S2** | at every detent, **no** branch is within 8.6° of ±90° (edge-on) — the K2 class is gone at rest |
+| **S3** | at every detent, no two beads are < 13px apart — this **cannot** pass on the carousel law alone: today 2-6 pairs, modelled at the detents 4.3-6.7px between the two lower branches plus the 0.0px K1 pair. It is the *relaxation's* check (§14.3 run per detent), so S3 is the gate for shipping the two together |
+| **S4** | one small wheel notch (≤ 40px) always changes the top branch (v0.5.69's no-op rule) and the walk wraps `k → 0` |
+| **S5** | the focused branch's dot measures 13.00px and its length grows by the fit's ratio (≥ +20% at `f = 0.72`); the unfocused dots also measure 13.00px (counter-scaled) |
+| **S6** | the axis row is at `f·h` (`|Δ| < 0.5px`) and the trunk's beads stay exactly on it |
+| **S7** | with `prefers-reduced-motion`, the phase jumps to the detent with no animation, and the flat projection is static |
+| **S8** | a straight-ray check at every detent: each spine's endpoints coincide with its first/last bead (the scale must not bend anything) |
+
+The existing suite (48 + 68 + 8 + 140) runs unchanged; `L7` (click-to-align) must now land on a
+detent, which is exactly what it asserts.
+
+---
+
+### 15.7 Step plan (once the decisions land)
+
+0. **O-snap-0** — §14.3's relaxation, run **per detent** (it is what clears K1 and the lower
+   branches' mirror pair), on top of today's even fan.
+1. **O-snap-1** — the fan law becomes the focus carousel law (`fan_root_theta` /
+   `fan_nested_theta` rewritten; the assertions in `fan_angles_tests` updated: the focused one
+   at 0, the rest inside `(90+δ, 270−δ)`, `k ≤ 3` provably all-below).
+2. **O-snap-2** — the detent model: the focus rank, `phase = −θ_focus`, the walk order and the
+   wrap; a `relayout_scene` lands on the aligned branch's detent.
+3. **O-snap-3** — the gesture: the settle rule (the next detent in the direction of travel), the
+   rAF animation writing `turn` + `mark_scroll`, the debounce, the reduced-motion jump, and the
+   wheel's new role (D-snap-2).
+4. **O-snap-4** — the asymmetric fit (`SCENE_AXIS_FRAC`, the two rooms) and the unfocused scale
+   `s` (the container `scale` + the beads' counter-scale, reusing the flat projection's
+   mechanism), then re-measure and pin the numbers.
+5. **O-snap-5** — the roll/tilt of §14.4/B on top (if approved), the flat law and the axis
+   re-centre.
+6. **O-snap-6** — the probes S1–S8 (new probe + `orbit_probe.py` deltas), the design doc's
+   §3b.6/§6, the mirror's canaries, both repos, a version bump.
+
+Everything stays **client + stylesheet** — the server projection does not change.
+
+---
+
+### 15.8 Open questions for the user
+
+* **D-snap-1**: accept the law — focused at the top, the rest in the lower arc inset by `δ`
+  (so no detent is ever edge-on)? **[recommended: yes, δ = 30°]**
+* **D-snap-1b**: the lower arc is *symmetric* today (k = 3 → 120°/240°), which is exactly what
+  makes the two lower branches mirror each other and collide (4.3px modelled). Break the
+  symmetry — (i) a fixed bias (the lower branches at 90+δ and 270−δ−b, b ≈ 15°, i.e.
+  135°/225°), (ii) a **column-aware** angle (the arc's spacing follows each branch's own
+  column span, so branches that share columns are pushed apart), (iii) leave it to the
+  relaxation? **[recommended: (iii) + (ii) as the relaxation's first move — measure both]**
+* **D-snap-2**: the wheel's new role — (a) focus the branches (the pan stays on the drag /
+  horizontal delta / scrollbar), (b) keep panning + snap on settle, (c) shift+wheel pans?
+  **[recommended: (a) — on the live fixture nothing is lost]**
+* **D-snap-3**: the **no-op rule** — every gesture advances at least one branch, and a long
+  gesture lands on the next detent *ahead* (not "the nearest"). **[recommended: yes]**
+* **D-snap-4**: the animation — ~300ms eased, a rAF writing `--rw-scroll`; instant under
+  `prefers-reduced-motion`. **[recommended: yes]**
+* **D-snap-5**: the axis `f` and the unfocused scale `s` — `f = 0.68 / 0.72 / 0.80`, with `s`
+  derived from the fit (the focused branch grows 23% / 51% / 74%). **[recommended: f = 0.72,
+  and pick by look]**
+* **D-snap-6**: `k ≥ 4` (where "all others below" is geometrically impossible): (i) allow the
+  minimum number of branches above the trunk, spread as low as possible; (ii) fall back to the
+  even full circle for `k ≥ 4`; (iii) keep the current `k % 4` nudge. **[recommended: (i),
+  and document it]**
+* **D-snap-7**: does the wheel change the **selection** (the detail panel walks the branches) or
+  only the **view** (the panel keeps the selected round)? **[recommended: view only — the panel
+  must not churn while browsing; a click still selects]**
+* **D-snap-8**: the nested fan keeps the same law centred on its parent's opposite ray (a lone
+  child at 180° as today, and §14's relaxation fixes its exact coincidence with the trunk row).
+  **[recommended: yes]**
+* **D-snap-9**: keep the §14 roll (the up-right opening) on top of this, and does its ψ apply to
+  the *detent* orientation too (the focused branch then points at the cone's top, which is
+  screen-tilted by ψ — not straight up)? **[recommended: yes to both, ψ = −10°]**
+* **D-snap-10**: the supersession list of §15.5 (D-fan-1/3/4/5, D-orb-8, and D-cone-8's full
+  circle bounded again while the walk keeps wrapping). **[recommended: accept]**
+
+---
+
+## §15.9 As built (v0.5.73, 2026-10-05)
+
+Shipped as the default, exactly as §15.8 recommends, with the three
+corrections below — all three are **measurements**, taken on the live fixture
+(`rewind`, 34 cols, 418px scene, 3 root branches, a nested child on the
+parent's first bead), not preferences.
+
+**The constants that landed**
+
+| what | value | measured effect |
+| --- | --- | --- |
+| `SCENE_AXIS_FRAC` | **0.68** (not 0.72) | `q 25.7 → 36.5px` (**+42%** on the focused branch), `--kof 0.82` |
+| `FAN_ARC_INSET` (δ) | 30° | no unfocused branch is edge-on; the live detents are `120°/0°/−120°` |
+| the unfocused slope | `--ql = --q · --kof`, `--kof = 0.82` | the lower arc fits; every dot still 13px (the focused one exactly 13.00) |
+| `NESTED_SHIFT` | **2 steps** | K1 across all detents: `0.0px → 44/29/29px` |
+| `CONE_ROLL_DEG` | **0** (wired, inert) | see below |
+
+**Correction 1 — the axis is 0.68, not 0.72.** §15.3 picked `f = 0.72` on the
+scale numbers alone. Live, 0.72 makes `--kof` collapse to 0.65, and then the
+**first bead of an end-of-arc branch sits 12.7px from the trunk's own bead in
+the same column** — a hair inside one dot (measured 7.7/9.2px once the
+perspective and the roll were applied). At 0.68 the same distance is 15px
+(clear) for 8px less reach. Both are modelled two ways (the analytic model and
+the live DOM) and agree.
+
+**Correction 2 — a nested fan starts **two** steps out, and this is the whole
+of K1's fix.** §14.1's K1 was diagnosed as a solver problem; it is not. K1 is
+exact and **phase-independent**: with `po == out` both `(po − out)·q` and
+`−(po − out)·q·sin a` vanish, so the child's bead is on the trunk row at every
+phase and no relaxation of *angles* or *radii* can change that (only moving
+the child itself). `out = po + 2` cannot cancel for any phase. Two, not one:
+at one step the bead is 8.7px from a sibling branch's bead at the detent where
+that sibling is focused; at two it is ≥ 20px from everything at all three
+detents. The branch's reach (`data-n`, `--n`) grows with it, so the fit and
+the spine stay correct — verified: the longest branch's beads are 0.1px off
+its spine and its last bead is at 99.7% of it.
+
+**Correction 3 — the up-right tilt must not be a `rotateZ`.** D-snap-9's roll
+is the wrong mechanism and was shipped **off** (`CONE_ROLL_DEG = 0`, the CSS
+wired and inert). `rotateZ(ψ)` on a branch's plane rolls that branch's **own
+column axis** as well: a 7-column branch's bead line then spans
+`±7·cell·sin ψ` = 41px at ψ = 10°, which tilted the bead line and lifted its
+far beads **above the trunk row** — the probe caught unfocused beads on the
+wrong side of the axis at three of the four steps. What the user asked for
+("the cone's opening leans up-right") is a **shear of the radial direction
+only**: each step leans, the columns stay horizontal. That is §14.6's D-slant
+question (O-slant-1..3), and it stays open.
+
+**Verified (all green, live, 2026-10-05 00:42)**
+
+* `/tmp/carousel_probe.py 8480 rewind` — **0 failed checks** over S1–S6: at
+  every detent exactly one branch is focused, the detent phase is exactly 0,
+  **every unfocused root branch's beads are below the axis**, no branch pair
+  coincides, the focused branch's dots are exactly 13.00px (the rest
+  11.7…13.2px, the perspective's band), the axis is `0.68·h`, `q = 36.5px`,
+  `--kof = 0.82`, and 3 wheel notches walk `fin0 → fin2 → fin3 → fin0` —
+  every notch a *new* branch up, the walk wrapping.
+* `/tmp/spine_probe.py 8480 rewind` — the spine still ends on its last bead
+  (a 7-round branch: beads 0.1px off the line, the last at 99.7%).
+* `cargo check --target wasm32-unknown-unknown` clean; `trunk build`
+  succeeds; `cargo test -p rushi-web` unchanged; the two native law tests
+  (extracted, `rustc --test`) pass.
+
+**Still open (ranked)**
+
+1. **K3, the mirror pair (8.3px measured)** — the two one-bead lower branches
+   of the live fixture are mirror images on one column, and the symmetric arc
+   is *why the walk is jump-free*: any asymmetric placement of a `k = 3` fan
+   teleports branches at the detent (proved in the model: a 180–240° swing).
+   The options, in the order §15.7 stages them: (a) **O-snap-0**, the §14.3
+   relaxation run **per detent**, which may only nudge within its cap — it
+   cannot fix a mirror pair *by angles* either, so it must be given a lateral
+   DOF; (b) **D-snap-1b(ii)**, a column-aware **x-stagger** of a half cell for
+   branches sharing a column (a static assignment keeps it jump-free; the cost
+   is that the focused branch can be 17px off its own columns); (c) accept it
+   (8.3px of overlap between two 13px dots at the *bottom* of the cone, the
+   dimmest, smallest, most "background" pair in the scene).
+2. **The up-right tilt** (Correction 3) — the shear form, D-slant.
+3. `k ≥ 4` is unbuilt and unmeasurable here: **no session on this host has
+   more than 3 root branches** (`flow_check.py`: every other session has 0 or
+   1). D-snap-6's "allow the minimum above the trunk" is written but never
+   exercised — the first real `k ≥ 4` session must be looked at before the
+   rule is trusted.
+4. The **hardened** relaxed-state question of §14.5 R8: with the roll off,
+   nothing in the current build depends on `--roll` being non-zero.

@@ -457,6 +457,14 @@ is fine; a rule is not). **v0.5.71 (the full circle)** adds `.rw-orbit.solo`:
 the bounded arc, its park and the one-branch swing are gone (D-cone-8/11), so a
 resurrected `.rw-orbit.solo` rule fails the sync too.
 
+**v0.5.73 (the focus carousel)** adds one selector, `.rw-branch.unfocused`, and
+no canary: the *focused* branch rides the layout's slope (`--q`) while every
+other branch of the root fan rides `--ql = --q · --kof`, so the lower arcs fit
+under the trunk at the sizes the carousel's asymmetric fit asks for. The class
+is written by the render beside `rw-branch` (it is *state*, not the stylesheet's
+business), `.rw-br-line` and the nested container read the same `--ql`, and
+nothing was deleted — so the canary and gone lists stand.
+
 **v0.5.72 (the even fan)** changed no selector: the step became `360/k` of each
 *fan*, and since the stylesheet cannot know which fan a container belongs to,
 the *render* writes each branch's angles in degrees (`--th`, and `--rdeg` for

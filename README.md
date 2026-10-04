@@ -101,6 +101,18 @@ python3 e2e/orbit_probe.py 8480                         # 48 checks, 0 failed
 #    edge-on, the front's nudge rule), the trunk unmoved, click-to-align, hit-testing a
 #    turned bead, the flat cos projection, reduced motion static, the zero-
 #    and one-fork cases, a nested fork, no traps)
+#   NOTE: v0.5.73's focus carousel (plan §15) supersedes this probe's angle
+#   assertions — it pins the even-fan law the carousel replaces — so it is
+#   kept as the v0.5.72 record and is not re-run. Use the two below.
+
+# the focus carousel (v0.5.73, plan §15.6's S1-S6), on a live branchy
+# session: one focus, phase 0, every unfocused root branch below the axis,
+# the walk wrapping, the dots still 13px — and the residual bead pairs, as
+# data
+python3 e2e/carousel_probe.py 8480 rewind               # 0 failed checks
+# the spine still ends on its branch's last bead after the nested shift
+# that fixes K1 (plan §14.1)
+python3 e2e/spine_probe.py 8480 rewind                  # 0.1px off, 99.7% along
 
 # end-to-end (Chromium over CDP; builds its own fixtures and server)
 cd rushi-webui && python3 e2e/rewind_probe.py [port]   # PASS (140 checks)
@@ -212,6 +224,51 @@ offset never exceeds `q`, so the panel's smaller half still holds the whole
 circle). The server was not touched: `orbit.step_deg` and `orbit.arc_deg` are
 both unread now.
 
+**v0.5.73 (the focus carousel, plan §15, D-snap-1..10)** stops the cone being a
+*free-turning* fan and gives it **detents**. One wheel notch brings the **next
+branch up** — rank order, wrapping `k → 0`, so a gesture is never a no-op
+(v0.5.69's rule) — and the focused branch hangs at `0` with the rest spread over
+the **lower arc**, inset `δ = 30°` so none is ever edge-on (the K2 class is
+unreachable by construction). The fit turns **asymmetric** so the focused
+branch has room: the axis drops to `0.68·h`, `q = (axis − margin − dot/2) /
+longest` (**+42%**, 25.7 → 36.5px measured), and an unfocused branch rides
+`--ql = --q · --kof` (`--kof = 0.82` live). Nothing scales an element — only
+the step — so **every dot is still 13px**: exactly 13.00 on the focused branch
+(`a = 0`), 11.7…13.2 on the others (the perspective). The walk is an
+accumulator (`--turn`), a ~300 ms eased `Interval` per detent, instant under
+`prefers-reduced-motion`, and it moves the **view only** — a click still
+selects (D-snap-7). The wheel keeps a **pan fallback** on a fan of 0/1 branch
+(every live session but `rewind`): the scroller is `overflow-x` only, so a
+vertical delta has to go through the same proxy it always did.
+
+Two findings came with it, both measured. **K1 (plan §14.1) is fixed by
+construction**: a nested fan now starts **two steps out**, because K1 was the
+exact, phase-independent coincidence `po == out` — both `(po − out)·q` and
+`−(po − out)·q·sin a` cancel, so the child's bead sat on the trunk row at
+*every* phase (0.0px at 24/24 sampled phases) and covered the trunk's round.
+`out = po + 2` cannot cancel for any phase (44/29/29px clearance at the live
+detents), and the spine's reach (`data-n`/`--n`) grows with it so it still ends
+on its last bead (0.1px off, measured). And the **up-right tilt is not
+shipped**: D-snap-9's `rotateZ(ψ)` was measured *wrong* — it rolls a branch's
+own **column axis** too, so a 7-column branch's bead line gained `±7·cell·sin
+ψ` (41px at 10°) of height and its far beads rose above the trunk row.
+`CONE_ROLL_DEG` is 0 with the CSS machinery wired and inert; the right form is
+a **shear of the radial direction only** (each step leans, the columns stay
+horizontal), which stays open as D-slant.
+
+Still open, on the record in **§15.9 of `docs/rewind-plugin-plan.md`**: the
+**mirror pair** (8.3px between the live session's two one-bead lower branches —
+they are mirror images on one column, and the *symmetric* arc is exactly what
+keeps the walk jump-free, so it needs the staged relaxation's lateral DOF, the
+D-snap-1b x-stagger, or acceptance); the tilt's shear form; and `k ≥ 4`, which
+no live session here can exercise (every session but `rewind` has 0 or 1 root
+branch). Verified live: the carousel probe's S1–S6 **0 failed** (one focus,
+phase exactly 0, every unfocused root branch below the axis, the walk wrapping
+`fin0 → fin2 → fin3 → fin0`), the spine probe 0.1px, `flow_style_b_probe 68/0`,
+`flow_check 8/0`, `rewind_probe 140 PASS`, `cargo test -p rushi-web 71`. The old
+`orbit_probe.py` (48 checks) is **superseded**: it pins the even-fan law this
+replaces.
+
 **Before that: the orbital ring (v0.5.68).** The scene was a **ring**: the
 trunk stayed the horizontal axis and never turned, and every forking branch
 was a **fin** — a plane hinged on that axis where it left, held out at an
@@ -258,12 +315,14 @@ four probes have since been re-run green for v0.5.70 and v0.5.71.
   **Style B — the flow view (§10.8 of `docs/rewind-plugin-plan.md`), the
   round-2 work (§10.9), the orbital ring (§12.9), the two live defects of
   §12.10, the cone of §13, its full circle (§13.7/§13.8) and the even fan
-  (§13.9/§13.10)**; upstream `rushi-webui` v0.5.72).
+  (§13.9/§13.10) and the focus carousel (§15, v0.5.73)**; upstream `rushi-webui`
+  v0.5.73).
   **Two styles, one tree:** `flow` — the horizontal `. - . - .` trunk with each
   forking branch leaning out of it as a straight ray, a 1:2 split with the
   selected round's full text above and the scene below, an auto-fit scene that
-  pans by drag/wheel and turns the branches in 3D on a full circle — is **the
-  default**, and the
+  pans by drag, a horizontal delta or the scrollbar, whose wheel walks a
+  **carousel of the branches** (one notch = the next branch up, the rest in the
+  lower half) — is **the default**, and the
   list (the rounds as a flat tree) is one click away in the top bar. Rewind is
   still only ever triggered from the panel's button → the one confirm dialog.
   The plugin is a pure view plus a write of an existing event type: **no
