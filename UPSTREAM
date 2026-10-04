@@ -1,7 +1,7 @@
 # The rushi-webui revision these mirrors were taken from.
 # Written by scripts/sync-from-webui.sh — do not edit.
 repo     = /Users/kiwi/Desktop/deepseek_harness/rushi/rushi-webui
-rev      = 0525fce9ef15ed1d12fdd3220c54288abff070a3
-subject  = v0.5.73 docs: record the wheel's pan fallback (a fan of 0/1 has nothing to focus)
+rev      = f76151ad06739149e9db1a567259bf1725d99a92
+subject  = plan §16: round 5 — the three defects, diagnosed with live measurements
 worktree = dirty
-synced   = 2026-10-04T17:08:31Z
+synced   = 2026-10-04T17:28:14Z
