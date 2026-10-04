@@ -1,7 +1,7 @@
 # The rushi-webui revision these mirrors were taken from.
 # Written by scripts/sync-from-webui.sh — do not edit.
 repo     = /Users/kiwi/Desktop/deepseek_harness/rushi/rushi-webui
-rev      = f76151ad06739149e9db1a567259bf1725d99a92
-subject  = plan §16: round 5 — the three defects, diagnosed with live measurements
+rev      = ec67918251ceb9a40322c005bace46569e1d6de1
+subject  = v0.5.74: round 5 — the snap's commit is continuous, no strike on a number, and a nested fan opens along its parent
 worktree = dirty
-synced   = 2026-10-04T17:28:14Z
+synced   = 2026-10-04T18:49:21Z

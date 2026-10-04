@@ -105,14 +105,17 @@ python3 e2e/orbit_probe.py 8480                         # 48 checks, 0 failed
 #   assertions — it pins the even-fan law the carousel replaces — so it is
 #   kept as the v0.5.72 record and is not re-run. Use the two below.
 
-# the focus carousel (v0.5.73, plan §15.6's S1-S6), on a live branchy
-# session: one focus, phase 0, every unfocused root branch below the axis,
-# the walk wrapping, the dots still 13px — and the residual bead pairs, as
-# data
+# the focus carousel (v0.5.73, plan §15.6's S1-S6 + round 5's F3), on a live
+# branchy session: one focus, phase 0, every unfocused root branch below the
+# axis, the focused branch's whole SUBTREE above it, the walk wrapping, the
+# dots still 13px — and the residual bead pairs, as data
 python3 e2e/carousel_probe.py 8480 rewind               # 0 failed checks
+# the snap's commit frame may not move anything (round 5, F1): the arriving
+# branch used to pop 22% in the frame the focus changed hands
+python3 e2e/snap_probe.py 8480 rewind                   # PASS, worst 0.20px
 # the spine still ends on its branch's last bead after the nested shift
-# that fixes K1 (plan §14.1)
-python3 e2e/spine_probe.py 8480 rewind                  # 0.1px off, 99.7% along
+# that fixes K1 (plan §14.1) — root and nested branches alike
+python3 e2e/spine_probe.py 8480 rewind                  # 0.0-0.8px off, 99.5-99.7% along
 
 # end-to-end (Chromium over CDP; builds its own fixtures and server)
 cd rushi-webui && python3 e2e/rewind_probe.py [port]   # PASS (140 checks)
@@ -223,6 +226,62 @@ still points straight up, and the auto-fit is untouched (a branch's screen
 offset never exceeds `q`, so the panel's smaller half still holds the whole
 circle). The server was not touched: `orbit.step_deg` and `orbit.arc_deg` are
 both unread now.
+
+**v0.5.74 (round 5: the three defects the user found in the carousel, plan
+§16)** — the user looked at v0.5.73 and reported three things; all three were
+measured before anything changed, and all three are fixed.
+
+**The arriving branch used to flash.** The snap's *angles* were continuous
+across the commit (≤ 0.4°, measured with a rAF sampler) but its *radius* was
+not: the step was keyed to the focus **class**, so in the one frame the focus
+changed hands the arriving branch jumped `q·kof → q` (+22%, its out=1 bead
+541 → 534px) and the departing one shrank the same amount — hence "a flash,
+then a landing near but not at where the flight stopped". The step is now a
+**continuous function of the branch's own angle**:
+`--ql = --q · (--kof + (1 − --kof)·max(0, cos a))` — identical at rest (1 on
+top, `kof` for everything in the lower half, so no resting number moves),
+smooth in between. The `.rw-branch.unfocused` class and its rule are gone.
+Measured: the commit frame's worst radius move is **0.20px** (was 7px). The fit
+also reads a new **`data-reach`** (chain-absolute: a nested branch's ancestors'
+offsets on top of its own) so a climbing subtree is paid for by the upper room,
+and the render writes **`--sum-par`** so the stylesheet can compute the
+*parent's* slope (`--qlp`) and place a nested container exactly on its parent's
+bead.
+
+**An abandoned number is never struck through.** `.rw3-node.abandoned
+.rw3-round` lost its `text-decoration` (the muted colour and the grey dot are
+the cue); prose may still be struck, a number may not.
+
+**A focused branch's sub-branches now climb.** D-fan-4 had centred a nested fan
+on **180°** — "opposite its parent" — which, with a *focused* parent pointing
+up, sent its child straight down through the trunk: the user's 14 → 21 (the 21
+bead measured **53px below** the trunk, at *every* detent). A nested fan is now
+a **small one-sided cone opening along the parent**: `NESTED_BIAS_DEG` = 15° off
+the parent's ray (never on it) widening to +25° (**the bias is measured, not
+chosen**: the user's 20–25° does not survive the fixture — at the *mirrored*
+detent a bias pushing the child toward ±90° makes its plane nearly edge-on and
+its beads compress into the parent's 15px-spaced band; the safe window is
+12–18°), plus `NESTED_CHAIN_MAX_DEG` = 70°, which scales a deep chain's fans
+down so **|θ| < 90° at every depth** — the guarantee the user asked for, "however
+many nodes and sub-branches". Measured: round 21 now renders **134px above**
+the trunk, 17.3–39.4px clear of its parent's beads at all four detents, and the
+focused branch's whole subtree is above the axis row at every detent.
+
+Five **probe** defects surfaced while verifying (all older than this release):
+the carousel probe compared viewport bead rects against the **scene-local**
+`--axis`, so every "below the axis" assertion was vacuously true, and its
+"unfocused roots" set still contained the *focused* branch — both now real; the
+spine probe projected beads onto an arbitrary bounding-box diagonal (the wrong
+one for an up-right bar: 154px of phantom error) and counted a nested branch's
+beads as its parent's; `flow_style_b_probe`'s H12 asserted the superseded
+D-fan-4 law on a fixture with no nested fan, i.e. vacuously; and F1 needed a new
+probe (`snap_probe.py`). Verified live: carousel **0 failed**, snap_probe
+**PASS** (0.20px), spine 0.0–0.8px / 99.5–99.7%, `flow_style_b_probe 68/0`,
+`flow_check 8/0`, `rewind_probe 140 PASS`, `cargo test -p rushi-web 71`, wasm
+check + `trunk build` clean, and the extracted native law tests 3/3 (including
+a new worst-case chain walk). Still open: the **K3 mirror pair** (9.1px between
+the live session's two one-bead lower branches — the symmetric arc's own
+problem, §15.9), the nested fan's 3+ child spread, and `k ≥ 4`.
 
 **v0.5.73 (the focus carousel, plan §15, D-snap-1..10)** stops the cone being a
 *free-turning* fan and gives it **detents**. One wheel notch brings the **next

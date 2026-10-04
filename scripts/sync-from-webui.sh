@@ -35,6 +35,7 @@ FLOWB="e2e/flow_style_b_probe.py"
 ORBIT="e2e/orbit_probe.py"
 CAROUSEL="e2e/carousel_probe.py"
 SPINE="e2e/spine_probe.py"
+SNAP="e2e/snap_probe.py"
 CDP="e2e/model_panel_probe.py"
 DOC1="docs/rewind-plugin.md"
 DOC2="docs/rewind-plugin-plan.md"
@@ -67,10 +68,12 @@ cp "$WEBUI/$FLOWB"  "$HERE/e2e/flow_style_b_probe.py"
 # rects. It imports `flow_style_b_probe` for the shared CDP client, so the
 # two copies above have to come along. Local-only, like all of e2e/.
 cp "$WEBUI/$ORBIT"  "$HERE/e2e/orbit_probe.py"
-# The focus carousel's own probe (v0.5.73, plan S1-S6) and the spine check
-# that came with the nested shift — both local-only, like all of e2e/.
+# The focus carousel's own probe (v0.5.73, plan S1-S6, extended with round
+# 5's F3), the snap's commit-frame check (v0.5.74, F1) and the spine check
+# that came with the nested shift — all local-only, like all of e2e/.
 cp "$WEBUI/$CAROUSEL" "$HERE/e2e/carousel_probe.py"
 cp "$WEBUI/$SPINE"    "$HERE/e2e/spine_probe.py"
+cp "$WEBUI/$SNAP"     "$HERE/e2e/snap_probe.py"
 cp "$WEBUI/$DOC1"   "$HERE/docs/rewind-plugin.md"
 cp "$WEBUI/$DOC2"   "$HERE/docs/rewind-plugin-plan.md"
 
