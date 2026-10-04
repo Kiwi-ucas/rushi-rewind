@@ -105,7 +105,8 @@ awk -v banner="$BANNER" -v end="$END" '
 # the canaries: the newest rules of the section must have made the trip.
 # v0.5.70 (the cone): `.rw-fin` and `.rw3-elbow` are *deleted* — a branch is
 # one straight bar now — so they move to the gone-canaries below and the
-# cone's own selectors take their place.
+# cone's own selectors take their place. v0.5.71 (the full circle, D-cone-8..11)
+# deletes `.rw-orbit.solo` and the park, so that goes to the gone-list too.
 for canary in '#rw-split' '.rw3-node' '.rw-orbit' '.rw-branch' '.rw-br-line' \
               '.rw3-sheen' '.fd-text'; do
   grep -qF -- "$canary" "$HERE/client/.rewind-block.css.tmp" || {
@@ -116,7 +117,9 @@ done
 
 # ... and the deleted ones must be gone: a resurrected ribbon or elbow bar
 # means the extraction picked up a stale copy or the section was duplicated
-# (a *rule*, not a mention: the v0.5.70 comments say the names on purpose)
+# (a *rule*, not a mention: the v0.5.70/v0.5.71 comments say the names on
+# purpose). `rw-orbit.solo` is matched as whole rule text, because it is a
+# compound selector.
 for gone in 'rw-fin' 'rw3-elbow' 'rw3-hinge'; do
   if grep -qE "^[[:space:]]*\.$gone([[:space:],{:.]|$)" \
        "$HERE/client/.rewind-block.css.tmp"; then
@@ -125,6 +128,12 @@ for gone in 'rw-fin' 'rw3-elbow' 'rw3-hinge'; do
     exit 1
   fi
 done
+if grep -qE "^[[:space:]]*\.rw-orbit\.solo([[:space:],{:.]|$)" \
+     "$HERE/client/.rewind-block.css.tmp"; then
+  echo "sync: .rw-orbit.solo is back in the extracted rewind block — v0.5.71" >&2
+  echo "      deleted it (plan §13.7, D-cone-11: a lone branch orbits)" >&2
+  exit 1
+fi
 
 {
   cat "$HERE/client/header.css"
